@@ -212,13 +212,27 @@ def get_category_by_id(category_id):
     return dict(category) if category else None
 
 # Product operations
-def get_all_products(category_id=None):
-    """Get all products, optionally filtered by category."""
+def get_all_products(category_id=None, order_by='izena', direction='asc'):
+    """Get all products, optionally filtered by category and sorted."""
     # Validate category_id if provided
     if category_id is not None:
         if not isinstance(category_id, int) or category_id <= 0:
             logger.warning(f"get_all_products: Invalid category_id - {category_id}")
             category_id = None
+    
+    # Validate and sanitize order_by (security: prevent SQL injection)
+    allowed_columns = {
+        'produktu_id': 'p.produktu_id',
+        'izena': 'p.izena',
+        'prezioa': 'p.prezioa',
+        'stocka': 'p.stocka',
+        'irudi_urla': 'p.irudi_urla'
+    }
+    order_column = allowed_columns.get(order_by, 'p.izena')
+    
+    # Validate direction
+    if direction not in ['asc', 'desc']:
+        direction = 'asc'
     
     conn = None
     try:
@@ -230,19 +244,19 @@ def get_all_products(category_id=None):
         cursor = conn.cursor()
         
         if category_id:
-            cursor.execute('''
+            cursor.execute(f'''
                 SELECT p.*, k.izena as kategoria_izena
                 FROM produktuak p
                 LEFT JOIN kategoriak k ON p.kategoria_id = k.kategoria_id
                 WHERE p.kategoria_id = ?
-                ORDER BY p.izena
+                ORDER BY {order_column} {direction.upper()}
             ''', (category_id,))
         else:
-            cursor.execute('''
+            cursor.execute(f'''
                 SELECT p.*, k.izena as kategoria_izena
                 FROM produktuak p
                 LEFT JOIN kategoriak k ON p.kategoria_id = k.kategoria_id
-                ORDER BY p.izena
+                ORDER BY {order_column} {direction.upper()}
             ''')
         
         rows = cursor.fetchall()
@@ -555,6 +569,277 @@ def update_product_stock(product_id, new_stock):
                 conn.close()
             except Exception as e:
                 logger.error(f"update_product_stock: Error closing connection - {str(e)}")
+
+def update_product_name(product_id, new_name):
+    """Update product name. Returns True if successful, False otherwise."""
+    if not product_id or not isinstance(product_id, int) or product_id <= 0:
+        logger.warning(f"update_product_name: Invalid product_id - {product_id}")
+        return False
+    
+    if not new_name or not isinstance(new_name, str) or len(new_name.strip()) == 0:
+        logger.warning(f"update_product_name: Invalid product name - {new_name}")
+        return False
+    
+    new_name = new_name.strip()
+    if len(new_name) > 200:  # Reasonable limit for product name
+        logger.warning(f"update_product_name: Product name too long - {len(new_name)} characters")
+        return False
+    
+    conn = None
+    try:
+        conn = get_db_connection()
+        if not conn:
+            logger.error("update_product_name: Failed to get database connection")
+            return False
+        
+        cursor = conn.cursor()
+        
+        # Check if product exists
+        cursor.execute('SELECT produktu_id FROM produktuak WHERE produktu_id = ?', (product_id,))
+        result = cursor.fetchone()
+        
+        if not result:
+            logger.warning(f"update_product_name: Product {product_id} not found")
+            return False
+        
+        # Update product name
+        cursor.execute('''
+            UPDATE produktuak
+            SET izena = ?
+            WHERE produktu_id = ?
+        ''', (new_name, product_id))
+        
+        if cursor.rowcount == 0:
+            logger.warning(f"update_product_name: No rows updated for product {product_id}")
+            conn.rollback()
+            return False
+        
+        conn.commit()
+        logger.info(f"update_product_name: Updated name for product {product_id} to '{new_name}'")
+        return True
+    except sqlite3.Error as e:
+        logger.error(f"update_product_name: Database error - {str(e)}")
+        logger.error(traceback.format_exc())
+        if conn:
+            conn.rollback()
+        return False
+    except Exception as e:
+        logger.error(f"update_product_name: Unexpected error - {type(e).__name__}: {str(e)}")
+        logger.error(traceback.format_exc())
+        if conn:
+            conn.rollback()
+        return False
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception as e:
+                logger.error(f"update_product_name: Error closing connection - {str(e)}")
+
+def update_product_price(product_id, new_price):
+    """Update product price. Returns True if successful, False otherwise."""
+    if not product_id or not isinstance(product_id, int) or product_id <= 0:
+        logger.warning(f"update_product_price: Invalid product_id - {product_id}")
+        return False
+    
+    if not isinstance(new_price, (int, float)) or new_price < 0:
+        logger.warning(f"update_product_price: Invalid product price - {new_price}")
+        return False
+    
+    try:
+        new_price = float(new_price)
+        # Round to 2 decimal places
+        new_price = round(new_price, 2)
+    except (ValueError, TypeError) as e:
+        logger.warning(f"update_product_price: Error converting price to float - {str(e)}")
+        return False
+    
+    conn = None
+    try:
+        conn = get_db_connection()
+        if not conn:
+            logger.error("update_product_price: Failed to get database connection")
+            return False
+        
+        cursor = conn.cursor()
+        
+        # Check if product exists
+        cursor.execute('SELECT produktu_id FROM produktuak WHERE produktu_id = ?', (product_id,))
+        result = cursor.fetchone()
+        
+        if not result:
+            logger.warning(f"update_product_price: Product {product_id} not found")
+            return False
+        
+        # Update product price
+        cursor.execute('''
+            UPDATE produktuak
+            SET prezioa = ?
+            WHERE produktu_id = ?
+        ''', (new_price, product_id))
+        
+        if cursor.rowcount == 0:
+            logger.warning(f"update_product_price: No rows updated for product {product_id}")
+            conn.rollback()
+            return False
+        
+        conn.commit()
+        logger.info(f"update_product_price: Updated price for product {product_id} to {new_price} €")
+        return True
+    except sqlite3.Error as e:
+        logger.error(f"update_product_price: Database error - {str(e)}")
+        logger.error(traceback.format_exc())
+        if conn:
+            conn.rollback()
+        return False
+    except Exception as e:
+        logger.error(f"update_product_price: Unexpected error - {type(e).__name__}: {str(e)}")
+        logger.error(traceback.format_exc())
+        if conn:
+            conn.rollback()
+        return False
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception as e:
+                logger.error(f"update_product_price: Error closing connection - {str(e)}")
+
+def update_product_image(product_id, image_url):
+    """Update product image URL. Returns True if successful, False otherwise."""
+    if not product_id or not isinstance(product_id, int) or product_id <= 0:
+        logger.warning(f"update_product_image: Invalid product_id - {product_id}")
+        return False
+    
+    # Allow empty string to clear image
+    if image_url is None:
+        image_url = ''
+    else:
+        image_url = str(image_url).strip()
+    
+    # Validate URL length (reasonable limit)
+    if len(image_url) > 500:
+        logger.warning(f"update_product_image: Image URL too long - {len(image_url)} characters")
+        return False
+    
+    conn = None
+    try:
+        conn = get_db_connection()
+        if not conn:
+            logger.error("update_product_image: Failed to get database connection")
+            return False
+        
+        cursor = conn.cursor()
+        
+        # Check if product exists
+        cursor.execute('SELECT produktu_id FROM produktuak WHERE produktu_id = ?', (product_id,))
+        result = cursor.fetchone()
+        
+        if not result:
+            logger.warning(f"update_product_image: Product {product_id} not found")
+            return False
+        
+        # Update product image URL
+        cursor.execute('''
+            UPDATE produktuak
+            SET irudi_urla = ?
+            WHERE produktu_id = ?
+        ''', (image_url, product_id))
+        
+        if cursor.rowcount == 0:
+            logger.warning(f"update_product_image: No rows updated for product {product_id}")
+            conn.rollback()
+            return False
+        
+        conn.commit()
+        logger.info(f"update_product_image: Updated image URL for product {product_id} to '{image_url}'")
+        return True
+    except sqlite3.Error as e:
+        logger.error(f"update_product_image: Database error - {str(e)}")
+        logger.error(traceback.format_exc())
+        if conn:
+            conn.rollback()
+        return False
+    except Exception as e:
+        logger.error(f"update_product_image: Unexpected error - {type(e).__name__}: {str(e)}")
+        logger.error(traceback.format_exc())
+        if conn:
+            conn.rollback()
+        return False
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception as e:
+                logger.error(f"update_product_image: Error closing connection - {str(e)}")
+
+def update_product_description(product_id, description):
+    """Update product description. Returns True if successful, False otherwise."""
+    if not product_id or not isinstance(product_id, int) or product_id <= 0:
+        logger.warning(f"update_product_description: Invalid product_id - {product_id}")
+        return False
+    
+    # Allow empty string or None for description
+    if description is None:
+        description = ''
+    else:
+        description = str(description).strip()
+    
+    # Validate description length (reasonable limit)
+    if len(description) > 2000:
+        logger.warning(f"update_product_description: Description too long - {len(description)} characters")
+        return False
+    
+    conn = None
+    try:
+        conn = get_db_connection()
+        if not conn:
+            logger.error("update_product_description: Failed to get database connection")
+            return False
+        
+        cursor = conn.cursor()
+        
+        # Check if product exists
+        cursor.execute('SELECT produktu_id FROM produktuak WHERE produktu_id = ?', (product_id,))
+        result = cursor.fetchone()
+        
+        if not result:
+            logger.warning(f"update_product_description: Product {product_id} not found")
+            return False
+        
+        # Update product description
+        cursor.execute('''
+            UPDATE produktuak
+            SET deskribapena = ?
+            WHERE produktu_id = ?
+        ''', (description, product_id))
+        
+        if cursor.rowcount == 0:
+            logger.warning(f"update_product_description: No rows updated for product {product_id}")
+            conn.rollback()
+            return False
+        
+        conn.commit()
+        logger.info(f"update_product_description: Updated description for product {product_id}")
+        return True
+    except sqlite3.Error as e:
+        logger.error(f"update_product_description: Database error - {str(e)}")
+        logger.error(traceback.format_exc())
+        if conn:
+            conn.rollback()
+        return False
+    except Exception as e:
+        logger.error(f"update_product_description: Unexpected error - {type(e).__name__}: {str(e)}")
+        logger.error(traceback.format_exc())
+        if conn:
+            conn.rollback()
+        return False
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception as e:
+                logger.error(f"update_product_description: Error closing connection - {str(e)}")
 
 # Cart operations
 def get_cart_items(user_id):

@@ -14,7 +14,7 @@
     </div>
     
     {% if products %}
-    <form method="POST" action="{{ url_for('admin_update_stock') }}" id="stockForm">
+    <form method="POST" action="{{ url_for('admin_update_stock', order_by=order_by, direction=direction) }}" id="stockForm">
         <div class="card shadow-sm">
             <div class="card-header bg-primary text-white">
                 <h5 class="mb-0">
@@ -26,9 +26,81 @@
                     <table class="table table-hover align-middle">
                         <thead class="table-light">
                             <tr>
-                                <th>ID</th>
-                                <th>Produktuaren Izena</th>
-                                <th class="text-center">Uneko Stocka</th>
+                                <th>
+                                    <a href="{{ url_for('admin_stock', order_by='produktu_id', direction='desc' if order_by == 'produktu_id' and direction == 'asc' else 'asc') }}" 
+                                       class="text-decoration-none text-dark d-flex align-items-center justify-content-between">
+                                        <span>ID</span>
+                                        {% if order_by == 'produktu_id' %}
+                                            {% if direction == 'asc' %}
+                                                <i class="bi bi-arrow-up"></i>
+                                            {% else %}
+                                                <i class="bi bi-arrow-down"></i>
+                                            {% endif %}
+                                        {% else %}
+                                            <i class="bi bi-arrow-down-up text-muted" style="opacity: 0.3;"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th style="width: 80px;">
+                                    <a href="{{ url_for('admin_stock', order_by='irudi_urla', direction='desc' if order_by == 'irudi_urla' and direction == 'asc' else 'asc') }}" 
+                                       class="text-decoration-none text-dark d-flex align-items-center justify-content-between">
+                                        <span>Irudia</span>
+                                        {% if order_by == 'irudi_urla' %}
+                                            {% if direction == 'asc' %}
+                                                <i class="bi bi-arrow-up"></i>
+                                            {% else %}
+                                                <i class="bi bi-arrow-down"></i>
+                                            {% endif %}
+                                        {% else %}
+                                            <i class="bi bi-arrow-down-up text-muted" style="opacity: 0.3;"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('admin_stock', order_by='izena', direction='desc' if order_by == 'izena' and direction == 'asc' else 'asc') }}" 
+                                       class="text-decoration-none text-dark d-flex align-items-center justify-content-between">
+                                        <span>Produktuaren Izena</span>
+                                        {% if order_by == 'izena' %}
+                                            {% if direction == 'asc' %}
+                                                <i class="bi bi-arrow-up"></i>
+                                            {% else %}
+                                                <i class="bi bi-arrow-down"></i>
+                                            {% endif %}
+                                        {% else %}
+                                            <i class="bi bi-arrow-down-up text-muted" style="opacity: 0.3;"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th class="text-center">
+                                    <a href="{{ url_for('admin_stock', order_by='prezioa', direction='desc' if order_by == 'prezioa' and direction == 'asc' else 'asc') }}" 
+                                       class="text-decoration-none text-dark d-flex align-items-center justify-content-center">
+                                        <span>Prezioa (€)</span>
+                                        {% if order_by == 'prezioa' %}
+                                            {% if direction == 'asc' %}
+                                                <i class="bi bi-arrow-up ms-1"></i>
+                                            {% else %}
+                                                <i class="bi bi-arrow-down ms-1"></i>
+                                            {% endif %}
+                                        {% else %}
+                                            <i class="bi bi-arrow-down-up text-muted ms-1" style="opacity: 0.3;"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th class="text-center">
+                                    <a href="{{ url_for('admin_stock', order_by='stocka', direction='desc' if order_by == 'stocka' and direction == 'asc' else 'asc') }}" 
+                                       class="text-decoration-none text-dark d-flex align-items-center justify-content-center">
+                                        <span>Uneko Stocka</span>
+                                        {% if order_by == 'stocka' %}
+                                            {% if direction == 'asc' %}
+                                                <i class="bi bi-arrow-up ms-1"></i>
+                                            {% else %}
+                                                <i class="bi bi-arrow-down ms-1"></i>
+                                            {% endif %}
+                                        {% else %}
+                                            <i class="bi bi-arrow-down-up text-muted ms-1" style="opacity: 0.3;"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
                                 <th class="text-center" style="min-width: 300px;">Stock-a Eguneratu</th>
                             </tr>
                         </thead>
@@ -36,11 +108,66 @@
                             {% for product in products %}
                             <tr>
                                 <td><strong>#{{ product.produktu_id }}</strong></td>
+                                <td class="text-center">
+                                    <div class="mb-2">
+                                        {% if product.irudi_urla %}
+                                        <img src="{{ product.irudi_urla }}" 
+                                             alt="{{ product.izena }}" 
+                                             class="img-thumbnail mb-2" 
+                                             id="preview_image_{{ product.produktu_id }}"
+                                             style="max-width: 60px; max-height: 60px; object-fit: cover; cursor: pointer;"
+                                             onerror="this.src='/static/images/placeholder.png'; this.onerror=null;"
+                                             onclick="document.getElementById('product_image_{{ product.produktu_id }}').focus();">
+                                        {% else %}
+                                        <div class="bg-light d-flex align-items-center justify-content-center mb-2" 
+                                             id="preview_image_{{ product.produktu_id }}"
+                                             style="width: 60px; height: 60px; border: 1px solid #dee2e6; border-radius: 0.25rem; cursor: pointer;"
+                                             onclick="document.getElementById('product_image_{{ product.produktu_id }}').focus();">
+                                            <i class="bi bi-image text-muted"></i>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    <input type="text" 
+                                           name="product_image_{{ product.produktu_id }}" 
+                                           id="product_image_{{ product.produktu_id }}"
+                                           class="form-control form-control-sm" 
+                                           value="{{ product.irudi_urla if product.irudi_urla else '' }}"
+                                           placeholder="/images/produktua.jpg"
+                                           onchange="updateImagePreview({{ product.produktu_id }}, this.value)"
+                                           style="font-size: 0.75rem;">
+                                    <small class="text-muted d-block mt-1" style="font-size: 0.7rem;">Irudia URL</small>
+                                </td>
                                 <td>
-                                    <strong>{{ product.izena }}</strong>
-                                    {% if product.deskribapena %}
-                                    <br><small class="text-muted">{{ product.deskribapena[:60] }}{% if product.deskribapena|length > 60 %}...{% endif %}</small>
-                                    {% endif %}
+                                    <div class="mb-2">
+                                        <input type="text" 
+                                               name="product_name_{{ product.produktu_id }}" 
+                                               id="product_name_{{ product.produktu_id }}"
+                                               class="form-control form-control-sm" 
+                                               value="{{ product.izena }}"
+                                               placeholder="Produktuaren izena"
+                                               style="font-weight: bold;">
+                                    </div>
+                                    <textarea name="product_description_{{ product.produktu_id }}" 
+                                              id="product_description_{{ product.produktu_id }}"
+                                              class="form-control form-control-sm" 
+                                              rows="2"
+                                              placeholder="Produktuaren deskribapena"
+                                              style="font-size: 0.85rem; resize: vertical;">{{ product.deskribapena if product.deskribapena else '' }}</textarea>
+                                    <small class="text-muted d-block mt-1" style="font-size: 0.7rem;">Deskribapena</small>
+                                </td>
+                                <td class="text-center">
+                                    <div class="input-group input-group-sm" style="max-width: 120px; margin: 0 auto;">
+                                        <span class="input-group-text">€</span>
+                                        <input type="number" 
+                                               name="product_price_{{ product.produktu_id }}" 
+                                               id="product_price_{{ product.produktu_id }}"
+                                               class="form-control text-center" 
+                                               value="{{ product.prezioa|round(2) if product.prezioa else 0.00 }}"
+                                               step="0.01"
+                                               min="0"
+                                               placeholder="0.00"
+                                               required>
+                                    </div>
                                 </td>
                                 <td class="text-center">
                                     <span class="badge {% if product.stocka > 10 %}bg-success{% elif product.stocka > 0 %}bg-warning{% else %}bg-danger{% endif %} fs-6 px-3 py-2">
@@ -78,7 +205,7 @@
             </div>
             <div class="card-footer bg-light">
                 <div class="d-flex justify-content-end">
-                    <button type="submit" class="btn btn-primary btn-lg">
+                    <button type="submit" class="btn btn-primary btn-lg" id="saveChangesBtn">
                         <i class="bi bi-save"></i> Gorde aldaketak
                     </button>
                 </div>
@@ -93,6 +220,29 @@
 </div>
 
 <script>
+// Store original values to detect changes
+const originalValues = {};
+
+// Initialize original values when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('stockForm');
+    if (!form) return;
+    
+    // Store original values for all inputs
+    const inputs = form.querySelectorAll('input[type="text"], input[type="number"], textarea');
+    inputs.forEach(input => {
+        if (input.name && input.name.startsWith('product_')) {
+            originalValues[input.name] = input.value;
+        }
+    });
+    
+    // Store original stock change values (should be 0)
+    const stockInputs = form.querySelectorAll('input[name^="stock_change_"]');
+    stockInputs.forEach(input => {
+        originalValues[input.name] = input.value || '0';
+    });
+});
+
 function increaseStock(productId) {
     const input = document.getElementById('stock_change_' + productId);
     const currentValue = parseInt(input.value) || 0;
@@ -104,6 +254,111 @@ function decreaseStock(productId) {
     const currentValue = parseInt(input.value) || 0;
     input.value = currentValue - 1;
 }
+
+function updateImagePreview(productId, imageUrl) {
+    const preview = document.getElementById('preview_image_' + productId);
+    if (!preview) return;
+    
+    if (imageUrl && imageUrl.trim() !== '') {
+        // If it's a div placeholder, replace with img
+        if (preview.tagName === 'DIV') {
+            const img = document.createElement('img');
+            img.src = imageUrl;
+            img.alt = 'Produktu irudia';
+            img.className = 'img-thumbnail mb-2';
+            img.style.cssText = 'max-width: 60px; max-height: 60px; object-fit: cover; cursor: pointer;';
+            img.onerror = function() {
+                this.src = '/static/images/placeholder.png';
+                this.onerror = null;
+            };
+            img.onclick = function() {
+                document.getElementById('product_image_' + productId).focus();
+            };
+            preview.parentNode.replaceChild(img, preview);
+            // Update the ID reference
+            img.id = 'preview_image_' + productId;
+        } else {
+            // Update existing img src
+            preview.src = imageUrl;
+        }
+    } else {
+        // If it's an img, replace with placeholder div
+        if (preview.tagName === 'IMG') {
+            const div = document.createElement('div');
+            div.className = 'bg-light d-flex align-items-center justify-content-center mb-2';
+            div.id = 'preview_image_' + productId;
+            div.style.cssText = 'width: 60px; height: 60px; border: 1px solid #dee2e6; border-radius: 0.25rem; cursor: pointer;';
+            div.onclick = function() {
+                document.getElementById('product_image_' + productId).focus();
+            };
+            div.innerHTML = '<i class="bi bi-image text-muted"></i>';
+            preview.parentNode.replaceChild(div, preview);
+        }
+    }
+}
+
+// Check if there are any changes in the form
+function hasChanges() {
+    const form = document.getElementById('stockForm');
+    if (!form) return false;
+    
+    // Check stock changes
+    const stockInputs = form.querySelectorAll('input[name^="stock_change_"]');
+    for (let input of stockInputs) {
+        const currentValue = parseInt(input.value) || 0;
+        const originalValue = parseInt(originalValues[input.name] || '0') || 0;
+        if (currentValue !== originalValue) {
+            return true;
+        }
+    }
+    
+    // Check other inputs (name, price, image, description)
+    const otherInputs = form.querySelectorAll('input[type="text"], input[type="number"], textarea');
+    for (let input of otherInputs) {
+        if (input.name && input.name.startsWith('product_')) {
+            const currentValue = (input.value || '').trim();
+            const originalValue = (originalValues[input.name] || '').trim();
+            
+            // For price inputs, compare as numbers
+            if (input.type === 'number') {
+                const currentNum = parseFloat(currentValue) || 0;
+                const originalNum = parseFloat(originalValue) || 0;
+                if (Math.abs(currentNum - originalNum) > 0.001) {
+                    return true;
+                }
+            } else {
+                // For text inputs and textareas
+                if (currentValue !== originalValue) {
+                    return true;
+                }
+            }
+        }
+    }
+    
+    return false;
+}
+
+// Intercept form submission
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('stockForm');
+    if (!form) return;
+    
+    form.addEventListener('submit', function(e) {
+        if (!hasChanges()) {
+            e.preventDefault();
+            alert('ℹ️ Ez da aldaketarik egin. Produktuen datuak berdinak dira.');
+            return false;
+        }
+        
+        // Show confirmation dialog
+        const confirmed = confirm('⚠️ Ziur zaude produktuen aldaketak gordetu nahi dituzula?\n\nAldaketak aplikatuko dira eta ezin dira desegin.');
+        
+        if (!confirmed) {
+            e.preventDefault();
+            return false;
+        }
+    });
+});
 </script>
 {% endblock %}
 

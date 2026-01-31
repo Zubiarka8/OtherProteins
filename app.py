@@ -29,6 +29,10 @@ from db_utils import (
     update_order_status,
     is_admin,
     update_product_stock,
+    update_product_name,
+    update_product_price,
+    update_product_image,
+    update_product_description,
     update_user_info
 )
 
@@ -1278,14 +1282,18 @@ def create_app():
                 flash('Eskaera ez da aurkitu.', 'danger')
                 return redirect(url_for('orders'))
             
-            # Verify that the order belongs to the current user
+            # Verify that the order belongs to the current user (unless admin)
+            user_email = session.get('user_email', '')
+            is_user_admin = session.get('is_admin', False)
+            
             order_user_id = order.get('erabiltzaile_id')
             if not order_user_id or not isinstance(order_user_id, int):
                 logger.warning(f"Invalid erabiltzaile_id in order: {order_user_id}")
                 flash('Eskaeraren datuak baliogabeak dira.', 'danger')
                 return redirect(url_for('orders'))
             
-            if order_user_id != user_id:
+            # Admin can access any order, regular users can only access their own
+            if not (is_user_admin and user_email == 'admin@gmail.com') and order_user_id != user_id:
                 logger.warning(f"User {user_id} tried to access order {order_id} belonging to user {order_user_id}")
                 flash('Eskaera hau zure kontuarena ez da.', 'danger')
                 return redirect(url_for('orders'))
@@ -1395,9 +1403,13 @@ def create_app():
                 flash('Eskaera ez da aurkitu.', 'danger')
                 return redirect(url_for('orders'))
             
-            # Verify ownership
+            # Verify ownership (unless admin)
+            user_email = session.get('user_email', '')
+            is_user_admin = session.get('is_admin', False)
+            
             order_user_id = order.get('erabiltzaile_id')
-            if not order_user_id or order_user_id != user_id:
+            # Admin can confirm any order, regular users can only confirm their own
+            if not (is_user_admin and user_email == 'admin@gmail.com') and (not order_user_id or order_user_id != user_id):
                 logger.warning(f"User {user_id} tried to confirm order {order_id} belonging to user {order_user_id}")
                 flash('Eskaera hau zure kontuarena ez da.', 'danger')
                 return redirect(url_for('orders'))
@@ -1462,9 +1474,13 @@ def create_app():
                 flash('Eskaera ez da aurkitu.', 'danger')
                 return redirect(url_for('orders'))
             
-            # Verify ownership
+            # Verify ownership (unless admin)
+            user_email = session.get('user_email', '')
+            is_user_admin = session.get('is_admin', False)
+            
             order_user_id = order.get('erabiltzaile_id')
-            if not order_user_id or order_user_id != user_id:
+            # Admin can cancel any order, regular users can only cancel their own
+            if not (is_user_admin and user_email == 'admin@gmail.com') and (not order_user_id or order_user_id != user_id):
                 logger.warning(f"User {user_id} tried to cancel order {order_id} belonging to user {order_user_id}")
                 flash('Eskaera hau zure kontuarena ez da.', 'danger')
                 return redirect(url_for('orders'))
@@ -1723,13 +1739,13 @@ def create_app():
             }
             order_status = status_translations.get(order_data.get("egoera", "N/A"), order_data.get("egoera", "N/A"))
             
-            # Information table with better styling
+            # Information table with better styling - Date at the top
             info_data = [
                 [Paragraph("<b>ESKAERA INFORMAZIOA</b>", ParagraphStyle('InfoHeader', parent=normal_style, fontSize=11, fontName='Helvetica-Bold', textColor=colors.HexColor('#2c3e50'))),
                  Paragraph("<b>BEZEROAREN INFORMAZIOA</b>", ParagraphStyle('InfoHeader', parent=normal_style, fontSize=11, fontName='Helvetica-Bold', textColor=colors.HexColor('#2c3e50')))],
-                [Paragraph(f"<b>Eskaera #:</b> {order_id}", normal_style),
+                [Paragraph(f"<b>Data:</b> {order_date_formatted}", ParagraphStyle('DateRow', parent=normal_style, fontSize=11, fontName='Helvetica-Bold', textColor=colors.HexColor('#2c3e50'))),
                  Paragraph(f"<b>Izena:</b> {customer_name}", normal_style)],
-                [Paragraph(f"<b>Data:</b> {order_date_formatted}", normal_style),
+                [Paragraph(f"<b>Eskaera #:</b> {order_id}", normal_style),
                  Paragraph(f"<b>Email:</b> {customer_email}", normal_style)],
                 [Paragraph(f"<b>Egoera:</b> {order_status}", normal_style),
                  Paragraph(f"<b>Telefonoa:</b> {customer_phone}", normal_style)]
@@ -2080,25 +2096,41 @@ def create_app():
                 flash('Eskaera hau zure kontuarena ez da.', 'danger')
                 return redirect(url_for('orders'))
             
-            # Check if admin needs to provide invoice data before generating invoice
-            if user_email == 'admin@gmail.com':
+            # Check if order belongs to admin - if so, require invoice data
+            order_user_id = order.get('erabiltzaile_id')
+            order_user_info = None
+            if order_user_id:
+                try:
+                    order_user_info = get_user_by_id(order_user_id)
+                except Exception as e:
+                    logger.warning(f"Error getting order user info: {str(e)}")
+            
+            # Check if order was made by admin@gmail.com
+            order_user_email = None
+            if order_user_info:
+                order_user_email = order_user_info.get('helbide_elektronikoa', '')
+            
+            # If order belongs to admin, require invoice data (client data for physical store)
+            if order_user_email == 'admin@gmail.com':
                 # Check if invoice data is in session (from form)
                 invoice_data = session.get('invoice_user_data', None)
                 if not invoice_data:
                     # Store order_id in session to redirect back after providing data
                     session['pending_invoice_order_id'] = order_id
-                    flash('Mesedez, sartu fakturako datuak faktura sortu aurretik.', 'warning')
+                    flash('Mesedez, sartu bezeroaren datuak faktura sortu aurretik.', 'warning')
                     return redirect(url_for('admin_complete_profile'))
             
             # Generate PDF
             try:
-                # Get invoice data from session if admin provided it
+                # Get invoice data from session if order belongs to admin (client data for physical store)
                 invoice_user_data = None
-                if user_email == 'admin@gmail.com':
+                if order_user_email == 'admin@gmail.com':
+                    # Get invoice data from session (already verified above)
                     invoice_user_data = session.get('invoice_user_data', None)
                     # Clear session data after use
                     if invoice_user_data:
                         session.pop('invoice_user_data', None)
+                # For regular users, invoice_user_data will be None, so PDF will use database data
                 
                 pdf_buffer = generate_invoice_pdf(order, invoice_user_data=invoice_user_data)
                 if not pdf_buffer:
@@ -2236,9 +2268,27 @@ def create_app():
                     return redirect(url_for('index'))
                 session['is_admin'] = True
             
-            # Get all products
+            # Get sorting parameters
+            order_by = request.args.get('order_by', 'produktu_id')
+            direction = request.args.get('direction', 'asc')
+            
+            # Validate order_by column (security: prevent SQL injection)
+            allowed_columns = {
+                'produktu_id': 'produktu_id',
+                'izena': 'izena',
+                'prezioa': 'prezioa',
+                'stocka': 'stocka',
+                'irudi_urla': 'irudi_urla'
+            }
+            order_by = allowed_columns.get(order_by, 'produktu_id')
+            
+            # Validate direction
+            if direction not in ['asc', 'desc']:
+                direction = 'asc'
+            
+            # Get all products with sorting
             try:
-                products = get_all_products()
+                products = get_all_products(order_by=order_by, direction=direction)
             except Exception as e:
                 logger.error(f"Error getting products in admin_stock: {str(e)}")
                 logger.error(traceback.format_exc())
@@ -2248,7 +2298,7 @@ def create_app():
             if not isinstance(products, list):
                 products = []
             
-            return render_template('admin_stock.html', products=products)
+            return render_template('admin_stock.html', products=products, order_by=order_by, direction=direction)
         except Exception as e:
             logger.error(f"Unexpected error in admin_stock: {type(e).__name__}: {str(e)}")
             logger.error(traceback.format_exc())
@@ -2278,14 +2328,32 @@ def create_app():
             
             # Get all product IDs and their stock changes from form
             updated_count = 0
+            name_updated_count = 0
+            price_updated_count = 0
+            image_updated_count = 0
+            description_updated_count = 0
             failed_count = 0
             failed_products = []
             
-            # Process all stock updates from the form
+            # Track unique products that were updated (by field type)
+            products_with_stock_update = set()
+            products_with_name_update = set()
+            products_with_price_update = set()
+            products_with_image_update = set()
+            products_with_description_update = set()
+            
+            # Process all product updates from the form
+            processed_products = set()  # Track which products we've processed
+            
+            # First, process stock updates
             for key, value in request.form.items():
                 if key.startswith('stock_change_'):
                     try:
                         product_id = int(key.replace('stock_change_', ''))
+                        if product_id in processed_products:
+                            continue
+                        processed_products.add(product_id)
+                        
                         stock_change = int(value) if value else 0
                         
                         # Get current stock
@@ -2316,7 +2384,7 @@ def create_app():
                         if new_stock < 0:
                             product = get_product_by_id(product_id)
                             product_name = product.get('izena', f'Produktua {product_id}') if product else f'Produktua {product_id}'
-                            flash(f'{product_name} produktuaren stock-a ezin da {new_stock} unitatera jaitsi (gutxienez 0 izan behar du). Uneko stocka: {current_stock}, aldaketa: {stock_change}', 'warning')
+                            flash(f'⚠️ {product_name} produktuaren stock-a ezin da {new_stock} unitatera jaitsi. Gutxienez 0 unitate izan behar du. Uneko stocka: {current_stock} unitate, aldaketa: {stock_change} unitate.', 'warning')
                             failed_count += 1
                             failed_products.append(product_name)
                             continue
@@ -2326,6 +2394,7 @@ def create_app():
                             success = update_product_stock(product_id, new_stock)
                             if success:
                                 updated_count += 1
+                                products_with_stock_update.add(product_id)
                             else:
                                 failed_count += 1
                                 product = get_product_by_id(product_id)
@@ -2346,26 +2415,232 @@ def create_app():
                         failed_count += 1
                         continue
             
-            # Show appropriate message
-            if updated_count > 0 and failed_count == 0:
-                flash(f'{updated_count} produkturen stock-a ondo eguneratu da.', 'success')
-            elif updated_count > 0 and failed_count > 0:
-                flash(f'{updated_count} produkturen stock-a eguneratu da, baina {failed_count} produktutan errorea gertatu da.', 'warning')
-                if failed_products:
-                    flash(f'Errorea gertatu da produktu hau(et)an: {", ".join(failed_products)}', 'warning')
-            elif failed_count > 0:
-                flash(f'Errorea gertatu da stock-a eguneratzean.', 'danger')
-                if failed_products:
-                    flash(f'Errorea gertatu da produktu hau(et)an: {", ".join(failed_products)}', 'danger')
-            else:
-                flash('Ez da eguneratzerik egin.', 'info')
+            # Process product name updates
+            for key, value in request.form.items():
+                if key.startswith('product_name_'):
+                    try:
+                        product_id = int(key.replace('product_name_', ''))
+                        new_name = value.strip() if value else None
+                        
+                        if not new_name or len(new_name) == 0:
+                            continue  # Skip empty names
+                        
+                        # Get current product to compare
+                        try:
+                            product = get_product_by_id(product_id)
+                            if not product:
+                                logger.warning(f"Product {product_id} not found for name update")
+                                continue
+                            
+                            current_name = product.get('izena', '').strip()
+                            if current_name == new_name:
+                                continue  # No change needed
+                            
+                            # Update product name
+                            success = update_product_name(product_id, new_name)
+                            if success:
+                                name_updated_count += 1
+                                products_with_name_update.add(product_id)
+                            else:
+                                logger.warning(f"Failed to update name for product {product_id}")
+                        except Exception as e:
+                            logger.error(f"Error updating name for product {product_id}: {str(e)}")
+                            logger.error(traceback.format_exc())
+                    except (ValueError, TypeError) as e:
+                        logger.warning(f"Error parsing name data: {key} = {value}, error: {str(e)}")
+                        continue
             
-            return redirect(url_for('admin_stock'))
+            # Process product price updates
+            for key, value in request.form.items():
+                if key.startswith('product_price_'):
+                    try:
+                        product_id = int(key.replace('product_price_', ''))
+                        try:
+                            new_price = float(value) if value else None
+                            if new_price is None or new_price < 0:
+                                continue  # Skip invalid prices
+                        except (ValueError, TypeError) as e:
+                            logger.warning(f"Invalid price value for product {product_id}: {value}")
+                            continue
+                        
+                        # Get current product to compare
+                        try:
+                            product = get_product_by_id(product_id)
+                            if not product:
+                                logger.warning(f"Product {product_id} not found for price update")
+                                continue
+                            
+                            current_price = product.get('prezioa', 0)
+                            try:
+                                current_price = float(current_price) if current_price else 0.0
+                            except (ValueError, TypeError):
+                                current_price = 0.0
+                            
+                            # Round to 2 decimal places for comparison
+                            new_price = round(new_price, 2)
+                            current_price = round(current_price, 2)
+                            
+                            if current_price == new_price:
+                                continue  # No change needed
+                            
+                            # Update product price
+                            success = update_product_price(product_id, new_price)
+                            if success:
+                                price_updated_count += 1
+                                products_with_price_update.add(product_id)
+                            else:
+                                logger.warning(f"Failed to update price for product {product_id}")
+                        except Exception as e:
+                            logger.error(f"Error updating price for product {product_id}: {str(e)}")
+                            logger.error(traceback.format_exc())
+                    except (ValueError, TypeError) as e:
+                        logger.warning(f"Error parsing price data: {key} = {value}, error: {str(e)}")
+                        continue
+            
+            # Process product image URL updates
+            for key, value in request.form.items():
+                if key.startswith('product_image_'):
+                    try:
+                        product_id = int(key.replace('product_image_', ''))
+                        new_image_url = value.strip() if value else ''
+                        
+                        # Get current product to compare
+                        try:
+                            product = get_product_by_id(product_id)
+                            if not product:
+                                logger.warning(f"Product {product_id} not found for image update")
+                                continue
+                            
+                            current_image_url = product.get('irudi_urla', '') or ''
+                            current_image_url = current_image_url.strip()
+                            
+                            if current_image_url == new_image_url:
+                                continue  # No change needed
+                            
+                            # Update product image URL
+                            success = update_product_image(product_id, new_image_url)
+                            if success:
+                                image_updated_count += 1
+                                products_with_image_update.add(product_id)
+                            else:
+                                logger.warning(f"Failed to update image URL for product {product_id}")
+                        except Exception as e:
+                            logger.error(f"Error updating image URL for product {product_id}: {str(e)}")
+                            logger.error(traceback.format_exc())
+                    except (ValueError, TypeError) as e:
+                        logger.warning(f"Error parsing image data: {key} = {value}, error: {str(e)}")
+                        continue
+            
+            # Process product description updates
+            for key, value in request.form.items():
+                if key.startswith('product_description_'):
+                    try:
+                        product_id = int(key.replace('product_description_', ''))
+                        new_description = value.strip() if value else ''
+                        
+                        # Get current product to compare
+                        try:
+                            product = get_product_by_id(product_id)
+                            if not product:
+                                logger.warning(f"Product {product_id} not found for description update")
+                                continue
+                            
+                            current_description = product.get('deskribapena', '') or ''
+                            current_description = current_description.strip()
+                            
+                            if current_description == new_description:
+                                continue  # No change needed
+                            
+                            # Update product description
+                            success = update_product_description(product_id, new_description)
+                            if success:
+                                description_updated_count += 1
+                                products_with_description_update.add(product_id)
+                            else:
+                                logger.warning(f"Failed to update description for product {product_id}")
+                        except Exception as e:
+                            logger.error(f"Error updating description for product {product_id}: {str(e)}")
+                            logger.error(traceback.format_exc())
+                    except (ValueError, TypeError) as e:
+                        logger.warning(f"Error parsing description data: {key} = {value}, error: {str(e)}")
+                        continue
+            
+            # Show appropriate message in Basque
+            # Count unique products updated (not individual field updates)
+            all_updated_products = (products_with_stock_update | products_with_name_update | 
+                                  products_with_price_update | products_with_image_update | 
+                                  products_with_description_update)
+            unique_products_count = len(all_updated_products)
+            
+            # Build update details list (what fields were updated)
+            update_details = []
+            if len(products_with_stock_update) > 0:
+                update_details.append('stock-a')
+            if len(products_with_name_update) > 0:
+                update_details.append('izena')
+            if len(products_with_price_update) > 0:
+                update_details.append('prezioa')
+            if len(products_with_image_update) > 0:
+                update_details.append('irudia')
+            if len(products_with_description_update) > 0:
+                update_details.append('deskribapena')
+            
+            if unique_products_count > 0 and failed_count == 0:
+                # All updates successful
+                if unique_products_count == 1:
+                    if len(update_details) == 1:
+                        flash(f'✅ Produktu baten {update_details[0]} ondo eguneratu da.', 'success')
+                    else:
+                        flash(f'✅ Produktu baten {", ".join(update_details[:-1])} eta {update_details[-1]} ondo eguneratu dira.', 'success')
+                else:
+                    if len(update_details) == 1:
+                        flash(f'✅ {unique_products_count} produkturen {update_details[0]} ondo eguneratu da.', 'success')
+                    else:
+                        flash(f'✅ {unique_products_count} produkturen {", ".join(update_details[:-1])} eta {update_details[-1]} ondo eguneratu dira.', 'success')
+                    
+            elif unique_products_count > 0 and failed_count > 0:
+                # Some updates successful, some failed
+                if unique_products_count == 1:
+                    if len(update_details) == 1:
+                        flash(f'⚠️ Produktu baten {update_details[0]} eguneratu da, baina {failed_count} produktutan errorea gertatu da.', 'warning')
+                    else:
+                        flash(f'⚠️ Produktu baten {", ".join(update_details[:-1])} eta {update_details[-1]} eguneratu dira, baina {failed_count} produktutan errorea gertatu da.', 'warning')
+                else:
+                    if len(update_details) == 1:
+                        flash(f'⚠️ {unique_products_count} produkturen {update_details[0]} eguneratu da, baina {failed_count} produktutan errorea gertatu da.', 'warning')
+                    else:
+                        flash(f'⚠️ {unique_products_count} produkturen {", ".join(update_details[:-1])} eta {update_details[-1]} eguneratu dira, baina {failed_count} produktutan errorea gertatu da.', 'warning')
+                
+                if failed_products:
+                    if len(failed_products) == 1:
+                        flash(f'❌ Errorea gertatu da produktu honetan: {failed_products[0]}', 'warning')
+                    else:
+                        flash(f'❌ Errorea gertatu da produktu hauetan: {", ".join(failed_products[:5])}{"..." if len(failed_products) > 5 else ""}', 'warning')
+                        
+            elif failed_count > 0:
+                # All updates failed
+                flash('❌ Errorea gertatu da produktuen datuak eguneratzean.', 'danger')
+                if failed_products:
+                    if len(failed_products) == 1:
+                        flash(f'Produktu honetan errorea: {failed_products[0]}', 'danger')
+                    else:
+                        flash(f'Produktu hauetan errorea: {", ".join(failed_products[:5])}{"..." if len(failed_products) > 5 else ""}', 'danger')
+            else:
+                # No changes made
+                flash('ℹ️ Ez da aldaketarik egin. Produktuen datuak berdinak dira.', 'info')
+            
+            # Preserve sorting parameters when redirecting
+            order_by = request.args.get('order_by', 'produktu_id')
+            direction = request.args.get('direction', 'asc')
+            return redirect(url_for('admin_stock', order_by=order_by, direction=direction))Changes before Firebase Studio auto-runChanges before Firebase Studio auto-run
         except Exception as e:
             logger.error(f"Unexpected error in admin_update_stock: {type(e).__name__}: {str(e)}")
             logger.error(traceback.format_exc())
-            flash('Errore larria gertatu da. Mesedez, saiatu berriro.', 'danger')
-            return redirect(url_for('admin_stock'))
+            flash('❌ Errore larria gertatu da produktuen datuak eguneratzean. Mesedez, saiatu berriro.', 'danger')
+            # Preserve sorting parameters when redirecting
+            order_by = request.args.get('order_by', 'produktu_id')
+            direction = request.args.get('direction', 'asc')
+            return redirect(url_for('admin_stock', order_by=order_by, direction=direction))
 
     # Generic error handlers
     @app.errorhandler(404)

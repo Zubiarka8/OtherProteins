@@ -319,10 +319,10 @@ def seed_sample_data():
         VALUES (?, ?)
     ''', kategoriak)
     
-    # Insert sample products with complete information
+    # Insert sample products with complete information (including brand and weight - unique titles)
     produktuak = [
         (
-            'Whey Protein Isolate',
+            'Optimum Nutrition Gold Standard Whey Protein - 2.27kg',
             'Kalitate handiko proteina isolatua, %90 baino gehiagoko proteina purutasuna duena. Muskuluen berreskuratzea azkartzen du entrenamenduaren ondoren.',
             55.00,
             '/images/whey.jpg',
@@ -333,7 +333,7 @@ def seed_sample_data():
             'Nahastu 30g produktua 250ml ur edo esnearekin. Erabili entrenamenduaren ondoren edo gosariaren ordez. Nahasketa ondo irabiatu eta berehala hartu.'
         ),
         (
-            'Caseina Nocturna',
+            'Dymatize Elite Casein - 1.8kg',
             'Proteina motel askatzea gauean. Muskuluen mantenua bermatzen du lo egiten duzun bitartean.',
             45.50,
             '/images/caseina.jpg',
@@ -344,7 +344,7 @@ def seed_sample_data():
             'Nahastu 40g produktua 300ml ur edo esnearekin. Gauean lo egin baino 30 minutura hartu. Nahasketa ondo irabiatu.'
         ),
         (
-            'Barritas Energéticas',
+            'Quest Nutrition Protein Bar - 60g x12',
             'Barritak entrenamenduarentzat. Energia azkarra eta proteina ugaria eskaintzen dute.',
             25.00,
             '/images/barritas.jpg',
@@ -355,7 +355,7 @@ def seed_sample_data():
             'Erabili entrenamendu baino 30-60 minutura edo entrenamenduaren ondoren. Barrita zabaldu eta jan.'
         ),
         (
-            'Creatina Monohidratada',
+            'MyProtein Creatine Monohydrate - 1kg',
             'Kreatina purua, muskuluen indarra eta errendimendua hobetzen duena.',
             22.99,
             '/images/creatina.jpg',
@@ -366,7 +366,7 @@ def seed_sample_data():
             'Erabili eguneko 3-5g entrenamendu baino 30 minutura edo entrenamenduaren ondoren. Nahastu 200-300ml ur edo zukuarekin. Nahasketa ondo irabiatu eta berehala hartu.'
         ),
         (
-            'Pre-entreno Intenso',
+            'Cellucor C4 Sport Pre-Workout - 400g',
             'Pre-entrenamendu formula indartsua. Energia, fokua eta errendimendua hobetzen ditu.',
             38.75,
             '/images/preentreno.jpg',
@@ -384,24 +384,44 @@ def seed_sample_data():
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', produktuak)
     
-    # Update existing products with new fields if they don't have them
+    # Update existing products with new fields if they don't have them (with unique brand names and weights)
     updates = [
-        ('Whey Protein Isolate', 15, 'Proteina isolatua (Whey Protein Isolate), zapore naturalak (txokolate, banilla, marrubi), lezitina (soja), acesulfame K, sukralosa.', 'Zerbitzu bakoitzeko (30g): Energia: 110 kcal, Proteina: 25g, Karbohidratoak: 2g (horietatik azukreak: 1g), Gantzak: 0.5g, Gatzak: 0.1g.', 'Nahastu 30g produktua 250ml ur edo esnearekin. Erabili entrenamenduaren ondoren edo gosariaren ordez. Nahasketa ondo irabiatu eta berehala hartu.'),
-        ('Caseina Nocturna', 10, 'Mikrokapsulatutako kaseina, zapore naturalak, lezitina, acesulfame K.', 'Zerbitzu bakoitzeko (40g): Energia: 140 kcal, Proteina: 30g, Karbohidratoak: 3g, Gantzak: 1g, Gatzak: 0.2g.', 'Nahastu 40g produktua 300ml ur edo esnearekin. Gauean lo egin baino 30 minutura hartu. Nahasketa ondo irabiatu.'),
-        ('Barritas Energéticas', 30, 'Oloa, proteina isolatua, eztia, kakaoa, fruitu lehorrak, intxaurrak, bitamina eta mineralak.', 'Barrita bakoitzeko (60g): Energia: 250 kcal, Proteina: 20g, Karbohidratoak: 25g, Gantzak: 8g, Zuntz dietetikoa: 5g.', 'Erabili entrenamendu baino 30-60 minutura edo entrenamenduaren ondoren. Barrita zabaldu eta jan.'),
-        ('Creatina Monohidratada', 25, 'Kreatina monohidratada %100 purua, ez du gehigarririk.', 'Zerbitzu bakoitzeko (5g): Kreatina: 5g, Kaloriak: 0 kcal, Gantzak: 0g, Karbohidratoak: 0g.', 'Erabili eguneko 3-5g entrenamendu baino 30 minutura edo entrenamenduaren ondoren. Nahastu 200-300ml ur edo zukuarekin. Nahasketa ondo irabiatu eta berehala hartu.'),
-        ('Pre-entreno Intenso', 0, 'Kafeina anhidroa, beta-alanina, L-arginina, taurina, bitamina B taldea, mineralak, zapore naturalak.', 'Zerbitzu bakoitzeko (15g): Energia: 50 kcal, Kafeina: 200mg, Beta-alanina: 2g, L-arginina: 1g, Taurina: 1g, Bitamina B6: 2mg.', 'Nahastu 15g produktua 300-400ml ur hotzarekin. Erabili entrenamendu baino 20-30 minutura. Ez hartu eguneko 17:00etatik aurrera lo egiteko arazoak ekiditeko.')
+        ('Optimum Nutrition Gold Standard Whey Protein - 2.27kg', 15, 'Proteina isolatua (Whey Protein Isolate), zapore naturalak (txokolate, banilla, marrubi), lezitina (soja), acesulfame K, sukralosa.', 'Zerbitzu bakoitzeko (30g): Energia: 110 kcal, Proteina: 25g, Karbohidratoak: 2g (horietatik azukreak: 1g), Gantzak: 0.5g, Gatzak: 0.1g.', 'Nahastu 30g produktua 250ml ur edo esnearekin. Erabili entrenamenduaren ondoren edo gosariaren ordez. Nahasketa ondo irabiatu eta berehala hartu.'),
+        ('Dymatize Elite Casein - 1.8kg', 10, 'Mikrokapsulatutako kaseina, zapore naturalak, lezitina, acesulfame K.', 'Zerbitzu bakoitzeko (40g): Energia: 140 kcal, Proteina: 30g, Karbohidratoak: 3g, Gantzak: 1g, Gatzak: 0.2g.', 'Nahastu 40g produktua 300ml ur edo esnearekin. Gauean lo egin baino 30 minutura hartu. Nahasketa ondo irabiatu.'),
+        ('Quest Nutrition Protein Bar - 60g x12', 30, 'Oloa, proteina isolatua, eztia, kakaoa, fruitu lehorrak, intxaurrak, bitamina eta mineralak.', 'Barrita bakoitzeko (60g): Energia: 250 kcal, Proteina: 20g, Karbohidratoak: 25g, Gantzak: 8g, Zuntz dietetikoa: 5g.', 'Erabili entrenamendu baino 30-60 minutura edo entrenamenduaren ondoren. Barrita zabaldu eta jan.'),
+        ('MyProtein Creatine Monohydrate - 1kg', 25, 'Kreatina monohidratada %100 purua, ez du gehigarririk.', 'Zerbitzu bakoitzeko (5g): Kreatina: 5g, Kaloriak: 0 kcal, Gantzak: 0g, Karbohidratoak: 0g.', 'Erabili eguneko 3-5g entrenamendu baino 30 minutura edo entrenamenduaren ondoren. Nahastu 200-300ml ur edo zukuarekin. Nahasketa ondo irabiatu eta berehala hartu.'),
+        ('Cellucor C4 Sport Pre-Workout - 400g', 0, 'Kafeina anhidroa, beta-alanina, L-arginina, taurina, bitamina B taldea, mineralak, zapore naturalak.', 'Zerbitzu bakoitzeko (15g): Energia: 50 kcal, Kafeina: 200mg, Beta-alanina: 2g, L-arginina: 1g, Taurina: 1g, Bitamina B6: 2mg.', 'Nahastu 15g produktua 300-400ml ur hotzarekin. Erabili entrenamendu baino 20-30 minutura. Ez hartu eguneko 17:00etatik aurrera lo egiteko arazoak ekiditeko.')
     ]
     
+    # Update existing products with unique brand names and weights
+    product_updates = {
+        'Whey Protein Isolate': 'Optimum Nutrition Gold Standard Whey Protein - 2.27kg',
+        'Caseina Nocturna': 'Dymatize Elite Casein - 1.8kg',
+        'Barritas Energéticas': 'Quest Nutrition Protein Bar - 60g x12',
+        'Creatina Monohidratada': 'MyProtein Creatine Monohydrate - 1kg',
+        'Pre-entreno Intenso': 'Cellucor C4 Sport Pre-Workout - 400g'
+    }
+    
+    for old_name, new_name in product_updates.items():
+        cursor.execute('''
+            UPDATE produktuak 
+            SET izena = ?
+            WHERE izena = ? OR izena LIKE ? OR izena LIKE ?
+        ''', (new_name, old_name, old_name + '%', '%' + old_name + '%'))
+    
+    # Update other fields for products
     for izena, stocka, osagaiak, balio_nutrizionalak, erabilera_modua in updates:
+        # Extract base name and find corresponding new name
+        base_name = izena.split(' - ')[0] if ' - ' in izena else izena
+        new_izena = product_updates.get(base_name, izena)
         cursor.execute('''
             UPDATE produktuak 
             SET stocka = COALESCE(stocka, ?),
                 osagaiak = COALESCE(osagaiak, ?),
                 balio_nutrizionalak = COALESCE(balio_nutrizionalak, ?),
                 erabilera_modua = COALESCE(erabilera_modua, ?)
-            WHERE izena = ?
-        ''', (stocka, osagaiak, balio_nutrizionalak, erabilera_modua, izena))
+            WHERE izena = ? OR izena LIKE ?
+        ''', (stocka, osagaiak, balio_nutrizionalak, erabilera_modua, new_izena, new_izena + '%'))
     
     # Insert sample user (password: 'admin123')
     hashed_password = hash_password('admin123')
