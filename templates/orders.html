@@ -1,0 +1,53 @@
+{% extends "layout.html" %}
+
+{% block title %}Nire Eskaerak - OtherProteins{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <h1 class="mb-4">
+        <i class="bi bi-box-seam"></i> Nire Eskaerak
+    </h1>
+    
+    {% if orders %}
+    <div class="row">
+        {% for order in orders %}
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        Eskaera #{{ order.eskaera_id }}
+                    </h5>
+                    <p class="text-muted small mb-2">
+                        <i class="bi bi-calendar"></i> 
+                        {{ order.sormen_data[:10] if order.sormen_data else 'Ezagutzekoa' }}
+                    </p>
+                    <p class="mb-3">
+                        <span class="badge 
+                            {% if order.egoera == 'prozesatzen' %}bg-warning
+                            {% elif order.egoera == 'bidalita' %}bg-info
+                            {% elif order.egoera == 'bukatuta' %}bg-success
+                            {% else %}bg-secondary{% endif %}">
+                            {{ order.egoera|title }}
+                        </span>
+                    </p>
+                    <a href="#" class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-eye"></i> Xehetasunak
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-5">
+        <i class="bi bi-inbox" style="font-size: 5rem; color: #ccc;"></i>
+        <h3 class="mt-3">Ez duzu eskaerarik</h3>
+        <p class="text-muted">Zure lehen eskaera hemen agertuko da.</p>
+        <a href="{{ url_for('index') }}" class="btn btn-primary">
+            <i class="bi bi-arrow-left"></i> Produktuak ikusi
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+

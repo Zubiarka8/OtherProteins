@@ -1,73 +1,85 @@
+{% extends "layout.html" %}
 
-<!DOCTYPE html>
-<html lang="eu">
-<head>
-    <meta charset="UTF-8">
-    <meta name-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Proteinen Denda</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
-<body>
-    <div class="container">
-        <h1 class="my-4">Gure Produktuak</h1>
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category }}">{{ message }}</div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-        <div class="row">
-            {% for produktua in produktuak %}
-            <div class="col-md-4">
-                <div class="card mb-4">
-                    <a href="{{ url_for('produktu_xehetasuna', id=produktua.id) }}">
-                        <img src="{{ produktua.irudi_urla or 'https://via.placeholder.com/250x200' }}" class="card-img-top" alt="{{ produktua.izena }}" style="cursor: pointer;">
-                    </a>
-                    <div class="card-body">
-                        <h5 class="card-title">
-                            <a href="{{ url_for('produktu_xehetasuna', id=produktua.id) }}" class="text-decoration-none text-dark">
-                                {{ produktua.izena }}
-                            </a>
-                        </h5>
-                        <p class="card-text">{{ produktua.deskribapena }}</p>
-                        <p class="card-text"><strong>Prezioa:</strong> {{ "%.2f"|format(produktua.prezioa) }}€</p>
-                        <p class="card-text">
-                            <strong>Stockean:</strong> 
-                            {% if produktua.stocka > 0 %}
-                                <span class="badge bg-success">{{ produktua.stocka }}</span>
-                            {% else %}
-                                <span class="badge bg-danger">Stockik ez</span>
-                            {% endif %}
-                        </p>
-                        <div class="d-grid gap-2">
-                            <a href="{{ url_for('produktu_xehetasuna', id=produktua.id) }}" class="btn btn-outline-primary">Xehetasunak ikusi</a>
-                            <a href="{{ url_for('add_to_cart', produktu_id=produktua.id) }}" class="btn btn-primary">Saskira gehitu</a>
-                        </div>
+{% block title %}Hasiera - OtherProteins{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    {% if search_query %}
+    <h1 class="mb-4">
+        <i class="bi bi-search"></i> Bilaketa emaitzak: "{{ search_query }}"
+    </h1>
+    <p class="text-muted mb-4">{{ produktuak|length }} produktu aurkitu dira.</p>
+    {% else %}
+    <h1 class="mb-4">
+        <i class="bi bi-lightning-charge-fill"></i> Gure Produktuak
+    </h1>
+    <p class="lead text-muted mb-4">
+        Kalitate handiko proteina eta suplementuak zure entrenamendu eta osasun helburuetarako.
+    </p>
+    {% endif %}
+    
+    {% if produktuak %}
+    <div class="row">
+        {% for produktua in produktuak %}
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card h-100 shadow-sm">
+                <a href="{{ url_for('produktu_xehetasuna', id=produktua.id) }}">
+                    <img src="{{ produktua.irudi_urla or 'https://via.placeholder.com/250x200' }}" 
+                         class="card-img-top" alt="{{ produktua.izena }}" 
+                         style="height: 250px; object-fit: cover;">
+                </a>
+                <div class="card-body d-flex flex-column">
+                    <h5 class="card-title">
+                        <a href="{{ url_for('produktu_xehetasuna', id=produktua.id) }}" 
+                           class="text-decoration-none text-dark">
+                            {{ produktua.izena }}
+                        </a>
+                    </h5>
+                    <p class="card-text text-muted small flex-grow-1">
+                        {{ produktua.deskribapena[:100] }}{% if produktua.deskribapena|length > 100 %}...{% endif %}
+                    </p>
+                    <div class="mb-3">
+                        <span class="h4 text-primary">{{ "%.2f"|format(produktua.prezioa) }}€</span>
+                        {% if produktua.stocka > 0 %}
+                            <span class="badge bg-success ms-2">
+                                <i class="bi bi-check-circle"></i> Stockean ({{ produktua.stocka }})
+                            </span>
+                        {% else %}
+                            <span class="badge bg-danger ms-2">
+                                <i class="bi bi-x-circle"></i> Stockik ez
+                            </span>
+                        {% endif %}
+                    </div>
+                    <div class="d-grid gap-2 mt-auto">
+                        <a href="{{ url_for('produktu_xehetasuna', id=produktua.id) }}" 
+                           class="btn btn-outline-primary">
+                            <i class="bi bi-eye"></i> Xehetasunak
+                        </a>
+                        {% if produktua.stocka > 0 %}
+                        <a href="{{ url_for('add_to_cart', produktu_id=produktua.id) }}" 
+                           class="btn btn-primary">
+                            <i class="bi bi-cart-plus"></i> Saskira gehitu
+                        </a>
+                        {% else %}
+                        <button class="btn btn-secondary" disabled>
+                            <i class="bi bi-x-circle"></i> Stockik ez
+                        </button>
+                        {% endif %}
                     </div>
                 </div>
             </div>
-            {% endfor %}
         </div>
-        <div class="my-4">
-            <h2>Saskia</h2>
-            {% if cart_items %}
-                <ul class="list-group mb-3">
-                    {% for item in cart_items %}
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        <span>{{ item.izena }} - {{ item.kantitatea }} x {{ "%.2f"|format(item.prezioa) }}€</span>
-                        <span class="badge bg-primary rounded-pill">{{ "%.2f"|format(item.kantitatea * item.prezioa) }}€</span>
-                    </li>
-                    {% endfor %}
-                </ul>
-                <form action="{{ url_for('checkout') }}" method="post">
-                    <button type="submit" class="btn btn-success">Erosi</button>
-                </form>
-            {% else %}
-                <p>Saskia hutsik dago.</p>
-            {% endif %}
-        </div>
+        {% endfor %}
     </div>
-</body>
-</html>
+    {% else %}
+    <div class="text-center py-5">
+        <i class="bi bi-inbox" style="font-size: 5rem; color: #ccc;"></i>
+        <h3 class="mt-3">Ez da produkturik aurkitu</h3>
+        <p class="text-muted">Saiatu beste bilaketa termino batzuekin.</p>
+        <a href="{{ url_for('index') }}" class="btn btn-primary">
+            <i class="bi bi-arrow-left"></i> Hasierara itzuli
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

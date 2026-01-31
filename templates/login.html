@@ -1,0 +1,54 @@
+{% extends "layout.html" %}
+
+{% block title %}Saioa Hasi - OtherProteins{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6 col-lg-5">
+            <div class="card shadow">
+                <div class="card-body p-5">
+                    <h2 class="card-title text-center mb-4">
+                        <i class="bi bi-box-arrow-in-right"></i> Saioa Hasi
+                    </h2>
+                    
+                    <form method="POST" action="{{ url_for('login') }}">
+                        <div class="mb-3">
+                            <label for="email" class="form-label">
+                                <i class="bi bi-envelope"></i> Helbide Elektronikoa
+                            </label>
+                            <input type="email" class="form-control" id="email" name="email" 
+                                   placeholder="zure@email.com" required autofocus>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label for="password" class="form-label">
+                                <i class="bi bi-lock"></i> Pasahitza
+                            </label>
+                            <input type="password" class="form-control" id="password" name="password" 
+                                   placeholder="Zure pasahitza" required>
+                        </div>
+                        
+                        <div class="d-grid mb-3">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="bi bi-box-arrow-in-right"></i> Saioa Hasi
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <hr>
+                    
+                    <div class="text-center">
+                        <p class="mb-0">Ez duzu konturik? 
+                            <a href="{{ url_for('register') }}" class="text-decoration-none">
+                                Erregistratu hemen
+                            </a>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

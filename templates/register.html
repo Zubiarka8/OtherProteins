@@ -1,0 +1,89 @@
+{% extends "layout.html" %}
+
+{% block title %}Erregistratu - OtherProteins{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card shadow">
+                <div class="card-body p-5">
+                    <h2 class="card-title text-center mb-4">
+                        <i class="bi bi-person-plus"></i> Erregistratu
+                    </h2>
+                    
+                    <form method="POST" action="{{ url_for('register') }}">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="first_name" class="form-label">
+                                    <i class="bi bi-person"></i> Izena
+                                </label>
+                                <input type="text" class="form-control" id="first_name" name="first_name" 
+                                       placeholder="Zure izena" required autofocus>
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label for="last_name" class="form-label">
+                                    <i class="bi bi-person"></i> Abizenak
+                                </label>
+                                <input type="text" class="form-control" id="last_name" name="last_name" 
+                                       placeholder="Zure abizenak" required>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="email" class="form-label">
+                                <i class="bi bi-envelope"></i> Helbide Elektronikoa
+                            </label>
+                            <input type="email" class="form-control" id="email" name="email" 
+                                   placeholder="zure@email.com" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="phone" class="form-label">
+                                <i class="bi bi-telephone"></i> Telefonoa (aukerakoa)
+                            </label>
+                            <input type="tel" class="form-control" id="phone" name="phone" 
+                                   placeholder="+34 600 000 000">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="password" class="form-label">
+                                <i class="bi bi-lock"></i> Pasahitza
+                            </label>
+                            <input type="password" class="form-control" id="password" name="password" 
+                                   placeholder="Gutxienez 6 karaktere" required minlength="6">
+                            <small class="form-text text-muted">Gutxienez 6 karaktere izan behar ditu.</small>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label for="confirm_password" class="form-label">
+                                <i class="bi bi-lock-fill"></i> Pasahitza Berretsi
+                            </label>
+                            <input type="password" class="form-control" id="confirm_password" name="confirm_password" 
+                                   placeholder="Pasahitza errepikatu" required minlength="6">
+                        </div>
+                        
+                        <div class="d-grid mb-3">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="bi bi-person-plus"></i> Erregistratu
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <hr>
+                    
+                    <div class="text-center">
+                        <p class="mb-0">Jada kontua duzu? 
+                            <a href="{{ url_for('login') }}" class="text-decoration-none">
+                                Saioa hasi hemen
+                            </a>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

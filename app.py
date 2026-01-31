@@ -10,7 +10,13 @@ from db_utils import (
     create_order, 
     reduce_product_stock,
     get_user_by_email,
-    get_product_by_id
+    get_product_by_id,
+    verify_password,
+    create_user,
+    get_user_orders,
+    update_cart_item,
+    remove_from_cart,
+    clear_cart
 )
 
 # Initialize database on import
@@ -151,6 +157,139 @@ def create_app():
             flash('Errorea gertatu da erosketa prozesatzean.', 'danger')
         
         return redirect(url_for('index'))
+
+    @app.route('/search')
+    def search():
+        """Search products by name or description."""
+        query = request.args.get('q', '').strip()
+        
+        if not query:
+            return redirect(url_for('index'))
+        
+        # Get all products and filter by query
+        all_products = get_all_products()
+        filtered_products = []
+        
+        query_lower = query.lower()
+        for p in all_products:
+            if (query_lower in p.get('izena', '').lower() or 
+                query_lower in p.get('deskribapena', '').lower()):
+                filtered_products.append({
+                    'id': p['produktu_id'],
+                    'izena': p['izena'],
+                    'deskribapena': p['deskribapena'],
+                    'prezioa': p['prezioa'],
+                    'stocka': p.get('stocka', 0),
+                    'irudi_urla': p.get('irudi_urla', 'https://via.placeholder.com/250x200')
+                })
+        
+        return render_template('index.html', produktuak=filtered_products, 
+                            search_query=query, cart_items=[])
+
+    @app.route('/login', methods=['GET', 'POST'])
+    def login():
+        """User login page."""
+        if request.method == 'POST':
+            email = request.form.get('email', '').strip()
+            password = request.form.get('password', '')
+            
+            if not email or not password:
+                flash('Mesedez, bete eremu guztiak.', 'danger')
+                return render_template('login.html')
+            
+            user = verify_password(email, password)
+            if user:
+                session['user_id'] = user['erabiltzaile_id']
+                session['user_email'] = user['helbide_elektronikoa']
+                session['user_name'] = f"{user['izena']} {user['abizenak']}"
+                flash('Ongi etorri! Saioa ondo hasi da.', 'success')
+                return redirect(url_for('index'))
+            else:
+                flash('Helbide elektronikoa edo pasahitza okerra.', 'danger')
+        
+        return render_template('login.html')
+
+    @app.route('/register', methods=['GET', 'POST'])
+    def register():
+        """User registration page."""
+        if request.method == 'POST':
+            email = request.form.get('email', '').strip()
+            password = request.form.get('password', '')
+            confirm_password = request.form.get('confirm_password', '')
+            first_name = request.form.get('first_name', '').strip()
+            last_name = request.form.get('last_name', '').strip()
+            phone = request.form.get('phone', '').strip()
+            
+            # Validation
+            if not all([email, password, first_name, last_name]):
+                flash('Mesedez, bete eremu beharrezko guztiak.', 'danger')
+                return render_template('register.html')
+            
+            if password != confirm_password:
+                flash('Pasahitzak ez datoz bat.', 'danger')
+                return render_template('register.html')
+            
+            if len(password) < 6:
+                flash('Pasahitzak gutxienez 6 karaktere izan behar ditu.', 'danger')
+                return render_template('register.html')
+            
+            # Create user
+            user_id = create_user(email, password, first_name, last_name, phone)
+            if user_id:
+                flash('Erregistroa ondo burutu da! Mesedez, saioa hasi.', 'success')
+                return redirect(url_for('login'))
+            else:
+                flash('Helbide elektronikoa jada erregistratuta dago.', 'danger')
+        
+        return render_template('register.html')
+
+    @app.route('/logout')
+    def logout():
+        """Logout user."""
+        session.clear()
+        flash('Saioa ondo itxi da. Laster arte!', 'info')
+        return redirect(url_for('index'))
+
+    @app.route('/cart')
+    def cart():
+        """Display shopping cart."""
+        user_id = session.get('user_id', 1)
+        cart_items = get_cart_items(user_id)
+        
+        total = sum(item['kantitatea'] * item['prezioa'] for item in cart_items)
+        
+        return render_template('cart.html', cart_items=cart_items, total=total)
+
+    @app.route('/update_cart', methods=['POST'])
+    def update_cart():
+        """Update cart item quantity."""
+        user_id = session.get('user_id', 1)
+        product_id = request.form.get('product_id', type=int)
+        quantity = request.form.get('quantity', type=int)
+        action = request.form.get('action', '')
+        
+        if action == 'remove':
+            remove_from_cart(user_id, product_id)
+            flash('Produktua saskitik kendu da.', 'success')
+        elif quantity and quantity > 0:
+            update_cart_item(user_id, product_id, quantity)
+            flash('Saskia eguneratu da.', 'success')
+        else:
+            flash('Kantitate baliogabea.', 'danger')
+        
+        return redirect(url_for('cart'))
+
+    @app.route('/orders')
+    def orders():
+        """Display user orders."""
+        if 'user_id' not in session:
+            flash('Mesedez, saioa hasi zure eskaerak ikusteko.', 'warning')
+            return redirect(url_for('login'))
+        
+        user_id = session['user_id']
+        orders = get_user_orders(user_id)
+        
+        return render_template('orders.html', orders=orders)
 
     # Generic error handlers
     @app.errorhandler(404)
