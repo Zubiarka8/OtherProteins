@@ -124,10 +124,9 @@ def create_app():
         
         return render_template('product_detail.html', produktua=formatted_product)
 
-    @app.route('/checkout', methods=['POST'])
+    @app.route('/checkout', methods=['GET', 'POST'])
     def checkout():
-        """Process checkout: verify cart, reduce stock, create order, clear cart."""
-        # Get user_id from session (default to 1 for demo)
+        """Show checkout form (GET) or process checkout (POST)."""
         user_id = session.get('user_id', 1)
         
         # Get cart items
@@ -136,7 +135,40 @@ def create_app():
         # Verify cart is not empty
         if not cart_items:
             flash('Saskia hutsik dago. Ezin da erosketa burutu.', 'warning')
-            return redirect(url_for('index'))
+            return redirect(url_for('cart'))
+        
+        # Calculate subtotal
+        subtotal = sum(item['kantitatea'] * item['prezioa'] for item in cart_items)
+        
+        if request.method == 'GET':
+            # Show checkout form
+            # Calculate shipping cost (5€ if subtotal < 50€)
+            entrega_kostua = 5.0 if subtotal < 50.0 else 0.0
+            total = subtotal + entrega_kostua
+            
+            return render_template('checkout.html', 
+                                cart_items=cart_items,
+                                subtotal=subtotal,
+                                entrega_kostua=entrega_kostua,
+                                total=total)
+        
+        # POST: Process checkout
+        entrega_mota = request.form.get('entrega_mota', 'tienda')
+        helbidea = request.form.get('helbidea', '').strip()
+        
+        # Validate delivery information
+        if entrega_mota == 'etxera' and not helbidea:
+            flash('Mesedez, sartu helbidea entrega etxera egiteko.', 'danger')
+            entrega_kostua = 5.0 if subtotal < 50.0 else 0.0
+            total = subtotal + entrega_kostua
+            return render_template('checkout.html',
+                                cart_items=cart_items,
+                                subtotal=subtotal,
+                                entrega_kostua=entrega_kostua,
+                                total=total)
+        
+        # Calculate shipping cost
+        entrega_kostua = 5.0 if subtotal < 50.0 and entrega_mota == 'etxera' else 0.0
         
         # Verify stock availability and reduce stock
         all_stock_available = True
@@ -154,13 +186,22 @@ def create_app():
         # If any product has insufficient stock, abort checkout
         if not all_stock_available:
             flash(f'Stock nahikorik ez dago produktu hau(et)an: {", ".join(insufficient_products)}', 'danger')
-            return redirect(url_for('index'))
+            return redirect(url_for('cart'))
         
-        # Create order
-        order_id = create_order(user_id, status='prozesatzen')
+        # Create order with delivery information
+        order_id = create_order(
+            user_id, 
+            status='prozesatzen',
+            entrega_mota=entrega_mota,
+            helbidea=helbidea if entrega_mota == 'etxera' else None,
+            entrega_kostua=entrega_kostua
+        )
         
         if order_id:
-            flash('Erosketa ondo burutu da. Eskerrik asko zure konfiantzagatik!', 'success')
+            if entrega_mota == 'tienda':
+                flash('Erosketa ondo burutu da! Produktuak dendan jasoko dituzu. Eskerrik asko!', 'success')
+            else:
+                flash('Erosketa ondo burutu da! Produktuak zure helbidera bidaliko dira. Eskerrik asko!', 'success')
         else:
             flash('Errorea gertatu da erosketa prozesatzean.', 'danger')
         
@@ -349,9 +390,12 @@ def create_app():
             flash('Eskaera hau zure kontuarena ez da.', 'danger')
             return redirect(url_for('orders'))
         
-        # Calculate total
-        total = sum(item['kantitatea'] * item['prezioa'] for item in order['elementuak'])
+        # Calculate total (subtotal + shipping cost)
+        subtotal = sum(item['kantitatea'] * item['prezioa'] for item in order['elementuak'])
+        entrega_kostua = order.get('entrega_kostua', 0) or 0
+        total = subtotal + entrega_kostua
         order['total'] = total
+        order['subtotal'] = subtotal
         
         return render_template('order_detail.html', order=order)
 

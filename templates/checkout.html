@@ -1,0 +1,173 @@
+{% extends "layout.html" %}
+
+{% block title %}Erosketa - OtherProteins{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <h1 class="mb-4">
+        <i class="bi bi-cart-check"></i> Erosketa
+    </h1>
+    
+    <div class="row">
+        <!-- Checkout Form -->
+        <div class="col-lg-8">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-truck"></i> Entrega Informazioa
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('checkout') }}">
+                        <!-- Delivery Method -->
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">Entrega Modua</label>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="radio" name="entrega_mota" 
+                                       id="tienda" value="tienda" checked 
+                                       onchange="toggleAddressField()">
+                                <label class="form-check-label" for="tienda">
+                                    <i class="bi bi-shop"></i> <strong>Dendan jasotzea</strong>
+                                    <small class="d-block text-muted">Produktuak dendan jasoko dituzu (doan)</small>
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="entrega_mota" 
+                                       id="etxera" value="etxera" 
+                                       onchange="toggleAddressField()">
+                                <label class="form-check-label" for="etxera">
+                                    <i class="bi bi-truck"></i> <strong>Etxera bidaltzea</strong>
+                                    <small class="d-block text-muted">
+                                        {% if subtotal < 50 %}
+                                            Entrega kostua: 5.00€ (50€ baino gutxiago)
+                                        {% else %}
+                                            Entrega doan (50€ baino gehiago)
+                                        {% endif %}
+                                    </small>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <!-- Address Field (only for delivery) -->
+                        <div class="mb-4" id="addressField" style="display: none;">
+                            <label for="helbidea" class="form-label fw-bold">
+                                <i class="bi bi-geo-alt"></i> Helbidea
+                            </label>
+                            <textarea class="form-control" id="helbidea" name="helbidea" 
+                                      rows="3" placeholder="Sartu zure helbide osoa..."></textarea>
+                            <small class="form-text text-muted">
+                                Mesedez, sartu helbide osoa: kalea, zenbakia, hiria, posta kodea
+                            </small>
+                        </div>
+                        
+                        <hr>
+                        
+                        <!-- Submit Button -->
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-success btn-lg">
+                                <i class="bi bi-check-circle"></i> Erosketa Burutu
+                            </button>
+                            <a href="{{ url_for('cart') }}" class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-left"></i> Saskira itzuli
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Order Summary -->
+        <div class="col-lg-4">
+            <div class="card sticky-top" style="top: 100px;">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-receipt"></i> Erosketa Laburpena
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <!-- Cart Items -->
+                    <div class="mb-3">
+                        <h6 class="mb-2">Produktuak:</h6>
+                        {% for item in cart_items %}
+                        <div class="d-flex justify-content-between mb-2 small">
+                            <span>{{ item.izena }} x{{ item.kantitatea }}</span>
+                            <span>{{ "%.2f"|format(item.kantitatea * item.prezioa) }}€</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <hr>
+                    
+                    <!-- Subtotal -->
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Azpitotala:</span>
+                        <strong>{{ "%.2f"|format(subtotal) }}€</strong>
+                    </div>
+                    
+                    <!-- Shipping Cost -->
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Entrega:</span>
+                        <strong id="shippingCost">
+                            {% if entrega_kostua > 0 %}
+                                {{ "%.2f"|format(entrega_kostua) }}€
+                            {% else %}
+                                Doan
+                            {% endif %}
+                        </strong>
+                    </div>
+                    
+                    <hr>
+                    
+                    <!-- Total -->
+                    <div class="d-flex justify-content-between mb-3">
+                        <span class="fs-5">Guztira:</span>
+                        <strong class="fs-4 text-primary" id="totalAmount">{{ "%.2f"|format(total) }}€</strong>
+                    </div>
+                    
+                    {% if subtotal < 50 %}
+                    <div class="alert alert-info small mb-0">
+                        <i class="bi bi-info-circle"></i> 
+                        50€ baino gehiago erosi entrega doan lortzeko!
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function toggleAddressField() {
+    const etxeraRadio = document.getElementById('etxera');
+    const addressField = document.getElementById('addressField');
+    const helbideaInput = document.getElementById('helbidea');
+    
+    if (etxeraRadio.checked) {
+        addressField.style.display = 'block';
+        helbideaInput.required = true;
+        updateShippingCost(true);
+    } else {
+        addressField.style.display = 'none';
+        helbideaInput.required = false;
+        updateShippingCost(false);
+    }
+}
+
+function updateShippingCost(hasShipping) {
+    const subtotal = {{ subtotal }};
+    const shippingCostElement = document.getElementById('shippingCost');
+    const totalAmountElement = document.getElementById('totalAmount');
+    
+    let shippingCost = 0;
+    if (hasShipping && subtotal < 50) {
+        shippingCost = 5.0;
+    }
+    
+    const total = subtotal + shippingCost;
+    
+    shippingCostElement.textContent = shippingCost > 0 ? shippingCost.toFixed(2) + '€' : 'Doan';
+    totalAmountElement.textContent = total.toFixed(2) + '€';
+}
+</script>
+{% endblock %}
+

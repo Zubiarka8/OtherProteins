@@ -301,7 +301,7 @@ def clear_cart(user_id):
             conn.close()
 
 # Order operations
-def create_order(user_id, status='pendiente'):
+def create_order(user_id, status='pendiente', entrega_mota='tienda', helbidea=None, entrega_kostua=0.0):
     """Create a new order from user's cart."""
     conn = None
     try:
@@ -315,9 +315,9 @@ def create_order(user_id, status='pendiente'):
         
         # Create order header
         cursor.execute('''
-            INSERT INTO eskaerak (erabiltzaile_id, egoera)
-            VALUES (?, ?)
-        ''', (user_id, status))
+            INSERT INTO eskaerak (erabiltzaile_id, egoera, entrega_mota, helbidea, entrega_kostua)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (user_id, status, entrega_mota, helbidea, entrega_kostua))
         order_id = cursor.lastrowid
         
         # Create order items from cart

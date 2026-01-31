@@ -95,9 +95,25 @@ def init_db():
             erabiltzaile_id INTEGER NOT NULL,
             sormen_data TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             egoera TEXT NOT NULL DEFAULT 'pendiente',
+            entrega_mota TEXT DEFAULT 'tienda',
+            helbidea TEXT,
+            entrega_kostua REAL DEFAULT 0,
             FOREIGN KEY (erabiltzaile_id) REFERENCES erabiltzaileak(erabiltzaile_id)
         )
     ''')
+    
+    # Migration: Add new columns if they don't exist
+    new_order_columns = [
+        ('entrega_mota', 'TEXT DEFAULT "tienda"'),
+        ('helbidea', 'TEXT'),
+        ('entrega_kostua', 'REAL DEFAULT 0')
+    ]
+    
+    for column_name, column_type in new_order_columns:
+        try:
+            cursor.execute(f'ALTER TABLE eskaerak ADD COLUMN {column_name} {column_type}')
+        except sqlite3.OperationalError:
+            pass  # Column already exists
     
     # Create eskaera_elementuak (order items) table
     cursor.execute('''
