@@ -82,12 +82,19 @@ def create_app():
             flash('Produktua ez da aurkitu.', 'danger')
             return redirect(url_for('index'))
         
-        # Add product to cart
-        if add_to_cart_db(user_id, produktu_id, 1):
+        # Check stock before adding
+        available_stock = product.get('stocka', 0)
+        if available_stock <= 0:
+            flash('Produktua ez dago stockean.', 'warning')
+            return redirect(url_for('index'))
+        
+        # Add product to cart with stock validation
+        success, message = add_to_cart_db(user_id, produktu_id, 1)
+        if success:
             product_name = product.get('izena', 'Produktua')
             flash(f'{product_name} saskira ondo gehitu da!', 'success')
         else:
-            flash('Errorea gertatu da produktua gehitzean.', 'danger')
+            flash(message, 'warning')
         
         return redirect(url_for('index'))
 
@@ -271,9 +278,38 @@ def create_app():
         if action == 'remove':
             remove_from_cart(user_id, product_id)
             flash('Produktua saskitik kendu da.', 'success')
+        elif action == 'increase':
+            # Get current quantity and increase by 1
+            cart_items = get_cart_items(user_id)
+            current_item = next((item for item in cart_items if item['produktu_id'] == product_id), None)
+            if current_item:
+                new_quantity = current_item['kantitatea'] + 1
+                success, message = update_cart_item(user_id, product_id, new_quantity)
+                if success:
+                    flash(message, 'success')
+                else:
+                    flash(message, 'warning')
+            else:
+                flash('Produktua ez da aurkitu saskian.', 'danger')
+        elif action == 'decrease':
+            # Get current quantity and decrease by 1
+            cart_items = get_cart_items(user_id)
+            current_item = next((item for item in cart_items if item['produktu_id'] == product_id), None)
+            if current_item:
+                new_quantity = max(1, current_item['kantitatea'] - 1)
+                success, message = update_cart_item(user_id, product_id, new_quantity)
+                if success:
+                    flash(message, 'success')
+                else:
+                    flash(message, 'warning')
+            else:
+                flash('Produktua ez da aurkitu saskian.', 'danger')
         elif quantity and quantity > 0:
-            update_cart_item(user_id, product_id, quantity)
-            flash('Saskia eguneratu da.', 'success')
+            success, message = update_cart_item(user_id, product_id, quantity)
+            if success:
+                flash(message, 'success')
+            else:
+                flash(message, 'warning')
         else:
             flash('Kantitate baliogabea.', 'danger')
         
