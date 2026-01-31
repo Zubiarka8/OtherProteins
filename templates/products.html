@@ -1,0 +1,48 @@
+
+<!DOCTYPE html>
+<html lang="eu">
+<head>
+    <meta charset="UTF-8">
+    <title>Produktuen Kudeaketa</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css">
+</head>
+<body>
+    <div class="container mt-4">
+        <h1>OtherProteins - Produktuen Inbentarioa</h1>
+
+        <!-- Flash messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} mt-3">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Product table -->
+        <table class="table table-striped mt-4">
+            <thead>
+                <tr>
+                    <th>Produktuaren Izena</th>
+                    <th>Uneko Stocka</th>
+                    <th>Aldatu Stocka</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for id, product in products.items() %}
+                    <tr>
+                        <td>{{ product.name }}</td>
+                        <td>{{ product.stock }}</td>
+                        <td>
+                            <form action="{{ url_for('products.update_stock', product_id=id) }}" method="post" class="d-flex">
+                                <input type="number" name="stock" class="form-control me-2" placeholder="Gehitu/Kendu" required>
+                                <button type="submit" class="btn btn-primary">Eguneratu</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>
