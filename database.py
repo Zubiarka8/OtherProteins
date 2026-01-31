@@ -11,9 +11,11 @@ from pathlib import Path
 DATABASE_PATH = Path('otherproteins.db')
 
 def get_db_connection():
-    """Get a database connection."""
-    conn = sqlite3.connect(DATABASE_PATH)
+    """Get a database connection with timeout and WAL mode for better concurrency."""
+    conn = sqlite3.connect(DATABASE_PATH, timeout=20.0)
     conn.row_factory = sqlite3.Row
+    # Enable WAL mode for better concurrency (allows multiple readers)
+    conn.execute('PRAGMA journal_mode=WAL')
     return conn
 
 def init_db():

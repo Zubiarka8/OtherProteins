@@ -105,34 +105,40 @@ def get_product_by_id(product_id):
 
 def reduce_product_stock(product_id, quantity):
     """Reduce product stock by quantity. Returns True if successful, False if insufficient stock."""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    # Check current stock
-    cursor.execute('SELECT stocka FROM produktuak WHERE produktu_id = ?', (product_id,))
-    result = cursor.fetchone()
-    
-    if not result:
-        conn.close()
-        return False
-    
-    current_stock = result['stocka'] if result['stocka'] is not None else 0
-    
-    if current_stock < quantity:
-        conn.close()
-        return False
-    
-    # Update stock
-    new_stock = current_stock - quantity
-    cursor.execute('''
-        UPDATE produktuak
-        SET stocka = ?
-        WHERE produktu_id = ?
-    ''', (new_stock, product_id))
-    
-    conn.commit()
-    conn.close()
-    return True
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Check current stock
+        cursor.execute('SELECT stocka FROM produktuak WHERE produktu_id = ?', (product_id,))
+        result = cursor.fetchone()
+        
+        if not result:
+            return False
+        
+        current_stock = result['stocka'] if result['stocka'] is not None else 0
+        
+        if current_stock < quantity:
+            return False
+        
+        # Update stock
+        new_stock = current_stock - quantity
+        cursor.execute('''
+            UPDATE produktuak
+            SET stocka = ?
+            WHERE produktu_id = ?
+        ''', (new_stock, product_id))
+        
+        conn.commit()
+        return True
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        raise
+    finally:
+        if conn:
+            conn.close()
 
 def get_product_stock(product_id):
     """Get current stock for a product."""
@@ -160,146 +166,179 @@ def get_cart_items(user_id):
 
 def add_to_cart(user_id, product_id, quantity=1):
     """Add or update item in cart. Returns (success: bool, message: str)."""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    # Get product stock
-    cursor.execute('SELECT stocka FROM produktuak WHERE produktu_id = ?', (product_id,))
-    product = cursor.fetchone()
-    if not product:
-        conn.close()
-        return False, 'Produktua ez da aurkitu.'
-    
-    available_stock = product['stocka'] if product['stocka'] is not None else 0
-    
-    # Check if item already exists in cart
-    cursor.execute('''
-        SELECT kantitatea FROM saski_elementuak
-        WHERE erabiltzaile_id = ? AND produktu_id = ?
-    ''', (user_id, product_id))
-    existing = cursor.fetchone()
-    
-    if existing:
-        # Update quantity - check stock
-        current_cart_quantity = existing['kantitatea']
-        new_quantity = current_cart_quantity + quantity
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
         
-        if new_quantity > available_stock:
+        # Get product stock
+        cursor.execute('SELECT stocka FROM produktuak WHERE produktu_id = ?', (product_id,))
+        product = cursor.fetchone()
+        if not product:
+            return False, 'Produktua ez da aurkitu.'
+        
+        available_stock = product['stocka'] if product['stocka'] is not None else 0
+        
+        # Check if item already exists in cart
+        cursor.execute('''
+            SELECT kantitatea FROM saski_elementuak
+            WHERE erabiltzaile_id = ? AND produktu_id = ?
+        ''', (user_id, product_id))
+        existing = cursor.fetchone()
+        
+        if existing:
+            # Update quantity - check stock
+            current_cart_quantity = existing['kantitatea']
+            new_quantity = current_cart_quantity + quantity
+            
+            if new_quantity > available_stock:
+                return False, f'Stock nahikorik ez dago. Gehienez {available_stock} unitate erabilgarri daude.'
+            
+            cursor.execute('''
+                UPDATE saski_elementuak
+                SET kantitatea = ?
+                WHERE erabiltzaile_id = ? AND produktu_id = ?
+            ''', (new_quantity, user_id, product_id))
+        else:
+            # Insert new item - check stock
+            if quantity > available_stock:
+                return False, f'Stock nahikorik ez dago. Gehienez {available_stock} unitate erabilgarri daude.'
+            
+            cursor.execute('''
+                INSERT INTO saski_elementuak (erabiltzaile_id, produktu_id, kantitatea)
+                VALUES (?, ?, ?)
+            ''', (user_id, product_id, quantity))
+        
+        conn.commit()
+        return True, 'Produktua saskira gehitu da.'
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        raise
+    finally:
+        if conn:
             conn.close()
+
+def update_cart_item(user_id, product_id, quantity):
+    """Update cart item quantity. Returns (success: bool, message: str)."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        if quantity <= 0:
+            # Remove item if quantity is 0 or less
+            cursor.execute('''
+                DELETE FROM saski_elementuak
+                WHERE erabiltzaile_id = ? AND produktu_id = ?
+            ''', (user_id, product_id))
+            conn.commit()
+            return True, 'Produktua saskitik kendu da.'
+        
+        # Get product stock
+        cursor.execute('SELECT stocka FROM produktuak WHERE produktu_id = ?', (product_id,))
+        product = cursor.fetchone()
+        if not product:
+            return False, 'Produktua ez da aurkitu.'
+        
+        available_stock = product['stocka'] if product['stocka'] is not None else 0
+        
+        # Check if quantity exceeds stock
+        if quantity > available_stock:
             return False, f'Stock nahikorik ez dago. Gehienez {available_stock} unitate erabilgarri daude.'
         
         cursor.execute('''
             UPDATE saski_elementuak
             SET kantitatea = ?
             WHERE erabiltzaile_id = ? AND produktu_id = ?
-        ''', (new_quantity, user_id, product_id))
-    else:
-        # Insert new item - check stock
-        if quantity > available_stock:
-            conn.close()
-            return False, f'Stock nahikorik ez dago. Gehienez {available_stock} unitate erabilgarri daude.'
+        ''', (quantity, user_id, product_id))
         
-        cursor.execute('''
-            INSERT INTO saski_elementuak (erabiltzaile_id, produktu_id, kantitatea)
-            VALUES (?, ?, ?)
-        ''', (user_id, product_id, quantity))
-    
-    conn.commit()
-    conn.close()
-    return True, 'Produktua saskira gehitu da.'
+        conn.commit()
+        return True, 'Saskia eguneratu da.'
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        raise
+    finally:
+        if conn:
+            conn.close()
 
-def update_cart_item(user_id, product_id, quantity):
-    """Update cart item quantity. Returns (success: bool, message: str)."""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    if quantity <= 0:
-        # Remove item if quantity is 0 or less
+def remove_from_cart(user_id, product_id):
+    """Remove item from cart."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
         cursor.execute('''
             DELETE FROM saski_elementuak
             WHERE erabiltzaile_id = ? AND produktu_id = ?
         ''', (user_id, product_id))
         conn.commit()
-        conn.close()
-        return True, 'Produktua saskitik kendu da.'
-    
-    # Get product stock
-    cursor.execute('SELECT stocka FROM produktuak WHERE produktu_id = ?', (product_id,))
-    product = cursor.fetchone()
-    if not product:
-        conn.close()
-        return False, 'Produktua ez da aurkitu.'
-    
-    available_stock = product['stocka'] if product['stocka'] is not None else 0
-    
-    # Check if quantity exceeds stock
-    if quantity > available_stock:
-        conn.close()
-        return False, f'Stock nahikorik ez dago. Gehienez {available_stock} unitate erabilgarri daude.'
-    
-    cursor.execute('''
-        UPDATE saski_elementuak
-        SET kantitatea = ?
-        WHERE erabiltzaile_id = ? AND produktu_id = ?
-    ''', (quantity, user_id, product_id))
-    
-    conn.commit()
-    conn.close()
-    return True, 'Saskia eguneratu da.'
-
-def remove_from_cart(user_id, product_id):
-    """Remove item from cart."""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('''
-        DELETE FROM saski_elementuak
-        WHERE erabiltzaile_id = ? AND produktu_id = ?
-    ''', (user_id, product_id))
-    conn.commit()
-    conn.close()
-    return True
+        return True
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        raise
+    finally:
+        if conn:
+            conn.close()
 
 def clear_cart(user_id):
     """Clear all items from user's cart."""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('DELETE FROM saski_elementuak WHERE erabiltzaile_id = ?', (user_id,))
-    conn.commit()
-    conn.close()
-    return True
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM saski_elementuak WHERE erabiltzaile_id = ?', (user_id,))
+        conn.commit()
+        return True
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        raise
+    finally:
+        if conn:
+            conn.close()
 
 # Order operations
 def create_order(user_id, status='pendiente'):
     """Create a new order from user's cart."""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    # Get cart items
-    cart_items = get_cart_items(user_id)
-    if not cart_items:
-        conn.close()
-        return None
-    
-    # Create order header
-    cursor.execute('''
-        INSERT INTO eskaerak (erabiltzaile_id, egoera)
-        VALUES (?, ?)
-    ''', (user_id, status))
-    order_id = cursor.lastrowid
-    
-    # Create order items from cart
-    for item in cart_items:
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get cart items (using separate connection to avoid locking)
+        cart_items = get_cart_items(user_id)
+        if not cart_items:
+            return None
+        
+        # Create order header
         cursor.execute('''
-            INSERT INTO eskaera_elementuak (eskaera_id, produktu_id, kantitatea, prezioa)
-            VALUES (?, ?, ?, ?)
-        ''', (order_id, item['produktu_id'], item['kantitatea'], item['prezioa']))
-    
-    # Clear cart after creating order
-    clear_cart(user_id)
-    
-    conn.commit()
-    conn.close()
-    return order_id
+            INSERT INTO eskaerak (erabiltzaile_id, egoera)
+            VALUES (?, ?)
+        ''', (user_id, status))
+        order_id = cursor.lastrowid
+        
+        # Create order items from cart
+        for item in cart_items:
+            cursor.execute('''
+                INSERT INTO eskaera_elementuak (eskaera_id, produktu_id, kantitatea, prezioa)
+                VALUES (?, ?, ?, ?)
+            ''', (order_id, item['produktu_id'], item['kantitatea'], item['prezioa']))
+        
+        # Clear cart after creating order (within same transaction)
+        cursor.execute('DELETE FROM saski_elementuak WHERE erabiltzaile_id = ?', (user_id,))
+        
+        conn.commit()
+        return order_id
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        raise
+    finally:
+        if conn:
+            conn.close()
 
 def get_user_orders(user_id):
     """Get all orders for a user."""
