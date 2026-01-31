@@ -13,6 +13,7 @@ from db_utils import (
     add_to_cart as add_to_cart_db, 
     create_order, 
     reduce_product_stock,
+    restore_product_stock,
     get_user_by_email,
     get_product_by_id,
     verify_password,
@@ -1365,17 +1366,17 @@ def create_app():
             current_status = order.get('egoera', '')
             if current_status not in ['prozesatzen', 'bidalita']:
                 if current_status == 'bukatuta':
-                    flash('Eskaera hau jada berretsi da.', 'info')
+                    flash('Eskaera hau jada iritsi da.', 'info')
                 elif current_status == 'bertan_behera':
                     flash('Eskaera hau bertan behera utzi da.', 'warning')
                 else:
-                    flash('Eskaera hau ezin da berretsi egoera honetan.', 'warning')
+                    flash('Eskaera hau ezin da iritsi egoera honetan.', 'warning')
                 return redirect(url_for('order_detail', order_id=order_id))
             
             # Update order status to 'bukatuta'
             try:
                 update_order_status(order_id, 'bukatuta')
-                flash('Eskaera ondo berretsi da. Eskerrik asko zure erosketagatik!', 'success')
+                flash('Eskaera ondo iritsi da. Eskerrik asko zure erosketagatik!', 'success')
             except Exception as e:
                 logger.error(f"Error updating order status in confirm_order: {str(e)}")
                 logger.error(traceback.format_exc())
@@ -1453,10 +1454,72 @@ def create_app():
                 flash('Eskaera ezin da bertan behera utzi 24 ordu baino gehiago igaro direlako.', 'warning')
                 return redirect(url_for('order_detail', order_id=order_id))
             
+            # Restore stock for all products in the order before canceling
+            order_items = order.get('elementuak', [])
+            if not isinstance(order_items, list):
+                order_items = []
+            
+            stock_restored = True
+            restored_products = []
+            failed_products = []
+            
+            for item in order_items:
+                if not isinstance(item, dict):
+                    continue
+                
+                try:
+                    product_id = item.get('produktu_id')
+                    quantity = item.get('kantitatea', 0)
+                    
+                    # Validate product_id and quantity
+                    if not isinstance(product_id, int) or product_id <= 0:
+                        logger.warning(f"cancel_order: Invalid product_id in order item: {product_id}")
+                        failed_products.append(item.get('izena', 'Produktu ezezaguna'))
+                        continue
+                    
+                    if not isinstance(quantity, (int, float)) or quantity <= 0:
+                        logger.warning(f"cancel_order: Invalid quantity in order item: {quantity}")
+                        failed_products.append(item.get('izena', f'Produktua {product_id}'))
+                        continue
+                    
+                    quantity = int(quantity)
+                    
+                    # Restore stock
+                    try:
+                        restored = restore_product_stock(product_id, quantity)
+                        if restored:
+                            product_name = item.get('izena', f'Produktua {product_id}')
+                            if not product_name:
+                                product_name = f'Produktua {product_id}'
+                            restored_products.append(product_name)
+                            logger.info(f"cancel_order: Restored {quantity} units for product {product_id}")
+                        else:
+                            stock_restored = False
+                            product_name = item.get('izena', f'Produktua {product_id}')
+                            if not product_name:
+                                product_name = f'Produktua {product_id}'
+                            failed_products.append(product_name)
+                            logger.error(f"cancel_order: Failed to restore stock for product {product_id}")
+                    except Exception as e:
+                        logger.error(f"cancel_order: Error restoring stock for product {product_id} - {str(e)}")
+                        logger.error(traceback.format_exc())
+                        stock_restored = False
+                        failed_products.append(item.get('izena', f'Produktua {product_id}'))
+                except (KeyError, ValueError, TypeError) as e:
+                    logger.error(f"cancel_order: Error processing order item - {str(e)}")
+                    logger.error(f"Item data: {item}")
+                    failed_products.append(item.get('izena', 'Produktu ezezaguna'))
+            
             # Update order status to 'bertan_behera'
             try:
                 update_order_status(order_id, 'bertan_behera')
-                flash('Eskaera bertan behera utzi da. Stocka berreskuratuko da.', 'success')
+                
+                if stock_restored and len(restored_products) > 0:
+                    flash(f'Eskaera bertan behera utzi da. Stocka berreskuratu da produktu hau(et)an: {", ".join(restored_products)}', 'success')
+                elif len(failed_products) > 0:
+                    flash(f'Eskaera bertan behera utzi da, baina errorea gertatu da stocka berreskuratzean produktu hau(et)an: {", ".join(failed_products)}', 'warning')
+                else:
+                    flash('Eskaera bertan behera utzi da.', 'success')
             except Exception as e:
                 logger.error(f"Error updating order status in cancel_order: {str(e)}")
                 logger.error(traceback.format_exc())

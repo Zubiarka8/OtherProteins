@@ -163,7 +163,7 @@
                         </div>
                         <form action="{{ url_for('confirm_order_route', order_id=order.eskaera_id) }}" method="post" class="mb-2">
                             <button type="submit" class="btn btn-success w-100">
-                                <i class="bi bi-check-circle"></i> Confirmar pedido
+                                <i class="bi bi-check-circle"></i> Eskaera iritsi
                             </button>
                         </form>
                         {% if order.can_cancel and order.egoera != 'bertan_behera' %}
@@ -178,11 +178,11 @@
                         <div class="alert alert-success mb-3 alert-permanent">
                             <i class="bi bi-truck"></i> 
                             <strong>Eskaera bidali da!</strong><br>
-                            <small>Jaso duzunean, mesedez berretsi beheko botoia erabiliz.</small>
+                            <small>Jaso duzunean, mesedez iritsi beheko botoia erabiliz.</small>
                         </div>
                         <form action="{{ url_for('confirm_order_route', order_id=order.eskaera_id) }}" method="post" class="mb-2">
                             <button type="submit" class="btn btn-success w-100">
-                                <i class="bi bi-check-circle"></i> Eskaera jaso dut berrestu
+                                <i class="bi bi-check-circle"></i> Eskaera jaso dut iritsi
                             </button>
                         </form>
                         {% if order.can_cancel and order.egoera != 'bertan_behera' %}

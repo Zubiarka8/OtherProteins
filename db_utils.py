@@ -345,6 +345,76 @@ def reduce_product_stock(product_id, quantity):
             except Exception as e:
                 logger.error(f"reduce_product_stock: Error closing connection - {str(e)}")
 
+def restore_product_stock(product_id, quantity):
+    """Restore (increase) product stock by quantity. Returns True if successful, False otherwise."""
+    # Validate inputs
+    if not product_id or not isinstance(product_id, int) or product_id <= 0:
+        logger.warning(f"restore_product_stock: Invalid product_id - {product_id}")
+        return False
+    
+    if not quantity or not isinstance(quantity, (int, float)) or quantity <= 0:
+        logger.warning(f"restore_product_stock: Invalid quantity - {quantity}")
+        return False
+    
+    quantity = int(quantity)
+    conn = None
+    try:
+        conn = get_db_connection()
+        if not conn:
+            logger.error("restore_product_stock: Failed to get database connection")
+            return False
+        
+        cursor = conn.cursor()
+        
+        # Check if product exists
+        cursor.execute('SELECT stocka FROM produktuak WHERE produktu_id = ?', (product_id,))
+        result = cursor.fetchone()
+        
+        if not result:
+            logger.warning(f"restore_product_stock: Product {product_id} not found")
+            return False
+        
+        current_stock = result['stocka'] if result['stocka'] is not None else 0
+        if not isinstance(current_stock, (int, float)):
+            current_stock = 0
+        current_stock = int(current_stock)
+        
+        # Update stock (increase)
+        new_stock = current_stock + quantity
+        
+        cursor.execute('''
+            UPDATE produktuak
+            SET stocka = ?
+            WHERE produktu_id = ?
+        ''', (new_stock, product_id))
+        
+        if cursor.rowcount == 0:
+            logger.warning(f"restore_product_stock: No rows updated for product {product_id}")
+            conn.rollback()
+            return False
+        
+        conn.commit()
+        logger.info(f"restore_product_stock: Restored {quantity} units for product {product_id} (new stock: {new_stock})")
+        return True
+    except sqlite3.Error as e:
+        logger.error(f"restore_product_stock: Database error - {str(e)}")
+        logger.error(traceback.format_exc())
+        if conn:
+            conn.rollback()
+        return False
+    except Exception as e:
+        logger.error(f"restore_product_stock: Unexpected error - {type(e).__name__}: {str(e)}")
+        logger.error(traceback.format_exc())
+        if conn:
+            conn.rollback()
+        return False
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception as e:
+                logger.error(f"restore_product_stock: Error closing connection - {str(e)}")
+
 def get_product_stock(product_id):
     """Get current stock for a product."""
     conn = get_db_connection()
