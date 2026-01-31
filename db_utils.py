@@ -355,31 +355,36 @@ def get_user_orders(user_id):
 
 def get_order_details(order_id):
     """Get order details with items."""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    # Get order header
-    cursor.execute('SELECT * FROM eskaerak WHERE eskaera_id = ?', (order_id,))
-    order = cursor.fetchone()
-    
-    if not order:
-        conn.close()
-        return None
-    
-    # Get order items
-    cursor.execute('''
-        SELECT e.*, p.izena, p.irudi_urla
-        FROM eskaera_elementuak e
-        JOIN produktuak p ON e.produktu_id = p.produktu_id
-        WHERE e.eskaera_id = ?
-    ''', (order_id,))
-    items = [dict(row) for row in cursor.fetchall()]
-    
-    conn.close()
-    
-    result = dict(order)
-    result['elementuak'] = items
-    return result
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get order header
+        cursor.execute('SELECT * FROM eskaerak WHERE eskaera_id = ?', (order_id,))
+        order = cursor.fetchone()
+        
+        if not order:
+            return None
+        
+        # Get order items
+        cursor.execute('''
+            SELECT e.*, p.izena, p.irudi_urla
+            FROM eskaera_elementuak e
+            JOIN produktuak p ON e.produktu_id = p.produktu_id
+            WHERE e.eskaera_id = ?
+            ORDER BY e.eskaera_elementu_id
+        ''', (order_id,))
+        items = [dict(row) for row in cursor.fetchall()]
+        
+        result = dict(order)
+        result['elementuak'] = items
+        return result
+    except Exception as e:
+        raise
+    finally:
+        if conn:
+            conn.close()
 
 def update_order_status(order_id, status):
     """Update order status."""

@@ -1,0 +1,133 @@
+{% extends "layout.html" %}
+
+{% block title %}Eskaera #{{ order.eskaera_id }} - OtherProteins{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Hasiera</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('orders') }}">Nire Eskaerak</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Eskaera #{{ order.eskaera_id }}</li>
+        </ol>
+    </nav>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <!-- Order Header -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div>
+                            <h2 class="mb-2">Eskaera #{{ order.eskaera_id }}</h2>
+                            <p class="text-muted mb-0">
+                                <i class="bi bi-calendar"></i> 
+                                {{ order.sormen_data[:10] if order.sormen_data else 'Ezagutzekoa' }}
+                                {% if order.sormen_data and order.sormen_data|length > 10 %}
+                                    {{ order.sormen_data[11:16] }}
+                                {% endif %}
+                            </p>
+                        </div>
+                        <span class="badge 
+                            {% if order.egoera == 'prozesatzen' %}bg-warning
+                            {% elif order.egoera == 'bidalita' %}bg-info
+                            {% elif order.egoera == 'bukatuta' %}bg-success
+                            {% else %}bg-secondary{% endif %} fs-6">
+                            {{ order.egoera|title }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Order Items -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-box-seam"></i> Eskaerako Produktuak
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if order.elementuak %}
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Produktua</th>
+                                    <th class="text-center">Kantitatea</th>
+                                    <th class="text-end">Prezioa</th>
+                                    <th class="text-end">Guztira</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in order.elementuak %}
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            {% if item.irudi_urla %}
+                                            <img src="{{ item.irudi_urla }}" 
+                                                 alt="{{ item.izena }}" 
+                                                 class="img-thumbnail me-3" 
+                                                 style="width: 60px; height: 60px; object-fit: cover;">
+                                            {% endif %}
+                                            <div>
+                                                <strong>{{ item.izena }}</strong>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-secondary">{{ item.kantitatea }}</span>
+                                    </td>
+                                    <td class="text-end">
+                                        {{ "%.2f"|format(item.prezioa) }}€
+                                    </td>
+                                    <td class="text-end">
+                                        <strong>{{ "%.2f"|format(item.kantitatea * item.prezioa) }}€</strong>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted text-center py-4">Ez da produkturik aurkitu eskaera honetan.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Order Summary -->
+        <div class="col-lg-4">
+            <div class="card sticky-top" style="top: 100px;">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-receipt"></i> Erosketa Laburpena
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Produktu kopurua:</span>
+                        <strong>{{ order.elementuak|sum(attribute='kantitatea') }} unitate</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-3">
+                        <span>Produktu motak:</span>
+                        <strong>{{ order.elementuak|length }}</strong>
+                    </div>
+                    <hr>
+                    <div class="d-flex justify-content-between mb-3">
+                        <span class="fs-5">Guztira:</span>
+                        <strong class="fs-4 text-primary">{{ "%.2f"|format(order.total) }}€</strong>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <a href="{{ url_for('orders') }}" class="btn btn-outline-secondary w-100">
+                            <i class="bi bi-arrow-left"></i> Eskaerak ikusi
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

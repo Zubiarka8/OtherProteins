@@ -14,6 +14,7 @@ from db_utils import (
     verify_password,
     create_user,
     get_user_orders,
+    get_order_details,
     update_cart_item,
     remove_from_cart,
     clear_cart
@@ -326,6 +327,33 @@ def create_app():
         orders = get_user_orders(user_id)
         
         return render_template('orders.html', orders=orders)
+
+    @app.route('/order/<int:order_id>')
+    def order_detail(order_id):
+        """Display order details."""
+        if 'user_id' not in session:
+            flash('Mesedez, saioa hasi zure eskaerak ikusteko.', 'warning')
+            return redirect(url_for('login'))
+        
+        user_id = session['user_id']
+        
+        # Get order details
+        order = get_order_details(order_id)
+        
+        if not order:
+            flash('Eskaera ez da aurkitu.', 'danger')
+            return redirect(url_for('orders'))
+        
+        # Verify that the order belongs to the current user
+        if order['erabiltzaile_id'] != user_id:
+            flash('Eskaera hau zure kontuarena ez da.', 'danger')
+            return redirect(url_for('orders'))
+        
+        # Calculate total
+        total = sum(item['kantitatea'] * item['prezioa'] for item in order['elementuak'])
+        order['total'] = total
+        
+        return render_template('order_detail.html', order=order)
 
     # Generic error handlers
     @app.errorhandler(404)

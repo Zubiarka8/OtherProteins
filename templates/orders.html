@@ -30,7 +30,7 @@
                             {{ order.egoera|title }}
                         </span>
                     </p>
-                    <a href="#" class="btn btn-outline-primary btn-sm">
+                    <a href="{{ url_for('order_detail', order_id=order.eskaera_id) }}" class="btn btn-outline-primary btn-sm">
                         <i class="bi bi-eye"></i> Xehetasunak
                     </a>
                 </div>
