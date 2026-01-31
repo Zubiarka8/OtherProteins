@@ -1,0 +1,109 @@
+{% extends "layout.html" %}
+
+{% block title %}Stock Modifikatu - OtherProteins{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>
+            <i class="bi bi-box-arrow-up-down"></i> Stock Modifikatu
+        </h1>
+        <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Hasierara itzuli
+        </a>
+    </div>
+    
+    {% if products %}
+    <form method="POST" action="{{ url_for('admin_update_stock') }}" id="stockForm">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                    <i class="bi bi-list-ul"></i> Produktuen Zerrenda
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>ID</th>
+                                <th>Produktuaren Izena</th>
+                                <th class="text-center">Uneko Stocka</th>
+                                <th class="text-center" style="min-width: 300px;">Stock-a Eguneratu</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for product in products %}
+                            <tr>
+                                <td><strong>#{{ product.produktu_id }}</strong></td>
+                                <td>
+                                    <strong>{{ product.izena }}</strong>
+                                    {% if product.deskribapena %}
+                                    <br><small class="text-muted">{{ product.deskribapena[:60] }}{% if product.deskribapena|length > 60 %}...{% endif %}</small>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge {% if product.stocka > 10 %}bg-success{% elif product.stocka > 0 %}bg-warning{% else %}bg-danger{% endif %} fs-6 px-3 py-2">
+                                        {{ product.stocka }} unitate
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="d-flex gap-2 justify-content-center align-items-center">
+                                        <input type="hidden" name="product_ids" value="{{ product.produktu_id }}">
+                                        <input type="hidden" name="current_stock_{{ product.produktu_id }}" value="{{ product.stocka }}">
+                                        <button type="button" class="btn btn-danger btn-sm" 
+                                                onclick="decreaseStock({{ product.produktu_id }})" 
+                                                title="Stock-a gutxitu">
+                                            <i class="bi bi-dash-lg"></i>
+                                        </button>
+                                        <input type="number" 
+                                               name="stock_change_{{ product.produktu_id }}" 
+                                               id="stock_change_{{ product.produktu_id }}"
+                                               class="form-control text-center" 
+                                               style="width: 80px;"
+                                               value="0" 
+                                               required>
+                                        <button type="button" class="btn btn-success btn-sm" 
+                                                onclick="increaseStock({{ product.produktu_id }})" 
+                                                title="Stock-a handitu">
+                                            <i class="bi bi-plus-lg"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card-footer bg-light">
+                <div class="d-flex justify-content-end">
+                    <button type="submit" class="btn btn-primary btn-lg">
+                        <i class="bi bi-save"></i> Gorde aldaketak
+                    </button>
+                </div>
+            </div>
+        </div>
+    </form>
+    {% else %}
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i> Ez da produkturik aurkitu.
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function increaseStock(productId) {
+    const input = document.getElementById('stock_change_' + productId);
+    const currentValue = parseInt(input.value) || 0;
+    input.value = currentValue + 1;
+}
+
+function decreaseStock(productId) {
+    const input = document.getElementById('stock_change_' + productId);
+    const currentValue = parseInt(input.value) || 0;
+    input.value = currentValue - 1;
+}
+</script>
+{% endblock %}
+

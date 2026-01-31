@@ -23,7 +23,9 @@ from db_utils import (
     update_cart_item,
     remove_from_cart,
     clear_cart,
-    update_order_status
+    update_order_status,
+    is_admin,
+    update_product_stock
 )
 
 # Configure logging
@@ -875,6 +877,10 @@ def create_app():
                         if not session['user_name']:
                             session['user_name'] = email
                         
+                        # Check if user is admin
+                        user_is_admin = user.get('admin', 0) == 1
+                        session['is_admin'] = user_is_admin
+                        
                         flash('Ongi etorri! Saioa ondo hasi da.', 'success')
                         return redirect(url_for('index'))
                     except (KeyError, ValueError, TypeError) as e:
@@ -1531,6 +1537,158 @@ def create_app():
             logger.error(traceback.format_exc())
             flash('Errore larria gertatu da. Mesedez, saiatu berriro.', 'danger')
             return redirect(url_for('orders'))
+
+    @app.route('/admin/stock')
+    def admin_stock():
+        """Admin panel for managing product stock."""
+        try:
+            # Check if user is logged in
+            if 'user_id' not in session:
+                flash('Mesedez, saioa hasi administratzaile panela erabiltzeko.', 'warning')
+                return redirect(url_for('login'))
+            
+            user_id = session.get('user_id')
+            if not user_id or not isinstance(user_id, int) or user_id <= 0:
+                flash('Erabiltzaile ID baliogabea.', 'warning')
+                return redirect(url_for('login'))
+            
+            # Check if user is admin
+            if not session.get('is_admin', False):
+                if not is_admin(user_id):
+                    flash('Ez duzu baimenik administratzaile panela erabiltzeko.', 'danger')
+                    return redirect(url_for('index'))
+                session['is_admin'] = True
+            
+            # Get all products
+            try:
+                products = get_all_products()
+            except Exception as e:
+                logger.error(f"Error getting products in admin_stock: {str(e)}")
+                logger.error(traceback.format_exc())
+                flash('Errorea gertatu da produktuak eskuratzean.', 'danger')
+                products = []
+            
+            if not isinstance(products, list):
+                products = []
+            
+            return render_template('admin_stock.html', products=products)
+        except Exception as e:
+            logger.error(f"Unexpected error in admin_stock: {type(e).__name__}: {str(e)}")
+            logger.error(traceback.format_exc())
+            flash('Errore larria gertatu da. Mesedez, saiatu berriro.', 'danger')
+            return redirect(url_for('index'))
+
+    @app.route('/admin/stock/update', methods=['POST'])
+    def admin_update_stock():
+        """Update product stock from admin panel."""
+        try:
+            # Check if user is logged in
+            if 'user_id' not in session:
+                flash('Mesedez, saioa hasi administratzaile panela erabiltzeko.', 'warning')
+                return redirect(url_for('login'))
+            
+            user_id = session.get('user_id')
+            if not user_id or not isinstance(user_id, int) or user_id <= 0:
+                flash('Erabiltzaile ID baliogabea.', 'warning')
+                return redirect(url_for('login'))
+            
+            # Check if user is admin
+            if not session.get('is_admin', False):
+                if not is_admin(user_id):
+                    flash('Ez duzu baimenik stock-a aldatzeko.', 'danger')
+                    return redirect(url_for('index'))
+                session['is_admin'] = True
+            
+            # Get all product IDs and their stock changes from form
+            updated_count = 0
+            failed_count = 0
+            failed_products = []
+            
+            # Process all stock updates from the form
+            for key, value in request.form.items():
+                if key.startswith('stock_change_'):
+                    try:
+                        product_id = int(key.replace('stock_change_', ''))
+                        stock_change = int(value) if value else 0
+                        
+                        # Get current stock
+                        current_stock_key = f'current_stock_{product_id}'
+                        current_stock = request.form.get(current_stock_key, type=int)
+                        if current_stock is None:
+                            # If not in form, get from database
+                            try:
+                                product = get_product_by_id(product_id)
+                                if product:
+                                    current_stock = product.get('stocka', 0)
+                                    if not isinstance(current_stock, (int, float)):
+                                        current_stock = 0
+                                    current_stock = int(current_stock)
+                                else:
+                                    logger.warning(f"Product {product_id} not found")
+                                    failed_count += 1
+                                    continue
+                            except Exception as e:
+                                logger.error(f"Error getting current stock for product {product_id}: {str(e)}")
+                                failed_count += 1
+                                continue
+                        
+                        # Calculate new stock (current + change)
+                        new_stock = current_stock + stock_change
+                        
+                        # Validate: new stock cannot be negative
+                        if new_stock < 0:
+                            product = get_product_by_id(product_id)
+                            product_name = product.get('izena', f'Produktua {product_id}') if product else f'Produktua {product_id}'
+                            flash(f'{product_name} produktuaren stock-a ezin da {new_stock} unitatera jaitsi (gutxienez 0 izan behar du). Uneko stocka: {current_stock}, aldaketa: {stock_change}', 'warning')
+                            failed_count += 1
+                            failed_products.append(product_name)
+                            continue
+                        
+                        # Update stock
+                        try:
+                            success = update_product_stock(product_id, new_stock)
+                            if success:
+                                updated_count += 1
+                            else:
+                                failed_count += 1
+                                product = get_product_by_id(product_id)
+                                if product:
+                                    failed_products.append(product.get('izena', f'Produktua {product_id}'))
+                        except Exception as e:
+                            logger.error(f"Error updating stock for product {product_id}: {str(e)}")
+                            logger.error(traceback.format_exc())
+                            failed_count += 1
+                            try:
+                                product = get_product_by_id(product_id)
+                                if product:
+                                    failed_products.append(product.get('izena', f'Produktua {product_id}'))
+                            except:
+                                pass
+                    except (ValueError, TypeError) as e:
+                        logger.warning(f"Error parsing stock data: {key} = {value}, error: {str(e)}")
+                        failed_count += 1
+                        continue
+            
+            # Show appropriate message
+            if updated_count > 0 and failed_count == 0:
+                flash(f'{updated_count} produkturen stock-a ondo eguneratu da.', 'success')
+            elif updated_count > 0 and failed_count > 0:
+                flash(f'{updated_count} produkturen stock-a eguneratu da, baina {failed_count} produktutan errorea gertatu da.', 'warning')
+                if failed_products:
+                    flash(f'Errorea gertatu da produktu hau(et)an: {", ".join(failed_products)}', 'warning')
+            elif failed_count > 0:
+                flash(f'Errorea gertatu da stock-a eguneratzean.', 'danger')
+                if failed_products:
+                    flash(f'Errorea gertatu da produktu hau(et)an: {", ".join(failed_products)}', 'danger')
+            else:
+                flash('Ez da eguneratzerik egin.', 'info')
+            
+            return redirect(url_for('admin_stock'))
+        except Exception as e:
+            logger.error(f"Unexpected error in admin_update_stock: {type(e).__name__}: {str(e)}")
+            logger.error(traceback.format_exc())
+            flash('Errore larria gertatu da. Mesedez, saiatu berriro.', 'danger')
+            return redirect(url_for('admin_stock'))
 
     # Generic error handlers
     @app.errorhandler(404)

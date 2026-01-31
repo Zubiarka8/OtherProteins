@@ -79,6 +79,14 @@
                                         <i class="bi bi-box-seam"></i> Nire Eskaerak
                                     </a>
                                 </li>
+                                {% if session.get('is_admin') %}
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    <a class="dropdown-item text-primary" href="{{ url_for('admin_stock') }}">
+                                        <i class="bi bi-box-arrow-up-down"></i> Modificar stock
+                                    </a>
+                                </li>
+                                {% endif %}
                                 <li><hr class="dropdown-divider"></li>
                                 <li>
                                     <a class="dropdown-item text-danger" href="{{ url_for('logout') }}">

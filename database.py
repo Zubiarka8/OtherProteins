@@ -173,6 +173,38 @@ def init_db():
             except sqlite3.OperationalError:
                 pass  # Column already exists
         
+        # Migration: Add admin column to users table
+        try:
+            cursor.execute('ALTER TABLE erabiltzaileak ADD COLUMN admin INTEGER DEFAULT 0')
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+        
+        # Create admin user if it doesn't exist
+        import logging
+        logger = logging.getLogger(__name__)
+        try:
+            admin_email = 'admin@gmail.com'
+            cursor.execute('SELECT erabiltzaile_id FROM erabiltzaileak WHERE helbide_elektronikoa = ?', (admin_email,))
+            admin_user = cursor.fetchone()
+            if not admin_user:
+                admin_password = hash_password('admin123')
+                cursor.execute('''
+                    INSERT INTO erabiltzaileak (helbide_elektronikoa, pasahitza, izena, abizenak, admin)
+                    VALUES (?, ?, ?, ?, ?)
+                ''', (admin_email, admin_password, 'Admin', 'Erabiltzailea', 1))
+                logger.info("Admin user created successfully")
+            else:
+                # Update existing admin user to ensure it has admin privileges
+                cursor.execute('UPDATE erabiltzaileak SET admin = 1 WHERE helbide_elektronikoa = ?', (admin_email,))
+        except sqlite3.OperationalError as e:
+            logger.warning(f"Could not create/update admin user: {str(e)}")
+        except Exception as e:
+            logger.warning(f"Error creating admin user: {str(e)}")
+            try:
+                cursor.execute(f'ALTER TABLE produktuak ADD COLUMN {column_name} {column_type}')
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+        
         # Create saski_elementuak (cart items) table
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS saski_elementuak (

@@ -424,6 +424,96 @@ def get_product_stock(product_id):
     conn.close()
     return result['stocka'] if result and result['stocka'] is not None else 0
 
+def is_admin(user_id):
+    """Check if user is admin."""
+    if not user_id or not isinstance(user_id, int) or user_id <= 0:
+        return False
+    
+    conn = None
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return False
+        
+        cursor = conn.cursor()
+        cursor.execute('SELECT admin FROM erabiltzaileak WHERE erabiltzaile_id = ?', (user_id,))
+        result = cursor.fetchone()
+        
+        if result and result.get('admin') == 1:
+            return True
+        return False
+    except Exception as e:
+        logger.error(f"is_admin: Error checking admin status - {str(e)}")
+        return False
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception as e:
+                logger.error(f"is_admin: Error closing connection - {str(e)}")
+
+def update_product_stock(product_id, new_stock):
+    """Update product stock to a specific value. Returns True if successful, False otherwise."""
+    if not product_id or not isinstance(product_id, int) or product_id <= 0:
+        logger.warning(f"update_product_stock: Invalid product_id - {product_id}")
+        return False
+    
+    if not isinstance(new_stock, (int, float)) or new_stock < 0:
+        logger.warning(f"update_product_stock: Invalid stock value - {new_stock}")
+        return False
+    
+    new_stock = int(new_stock)
+    conn = None
+    try:
+        conn = get_db_connection()
+        if not conn:
+            logger.error("update_product_stock: Failed to get database connection")
+            return False
+        
+        cursor = conn.cursor()
+        
+        # Check if product exists
+        cursor.execute('SELECT produktu_id FROM produktuak WHERE produktu_id = ?', (product_id,))
+        result = cursor.fetchone()
+        
+        if not result:
+            logger.warning(f"update_product_stock: Product {product_id} not found")
+            return False
+        
+        # Update stock
+        cursor.execute('''
+            UPDATE produktuak
+            SET stocka = ?
+            WHERE produktu_id = ?
+        ''', (new_stock, product_id))
+        
+        if cursor.rowcount == 0:
+            logger.warning(f"update_product_stock: No rows updated for product {product_id}")
+            conn.rollback()
+            return False
+        
+        conn.commit()
+        logger.info(f"update_product_stock: Updated stock for product {product_id} to {new_stock}")
+        return True
+    except sqlite3.Error as e:
+        logger.error(f"update_product_stock: Database error - {str(e)}")
+        logger.error(traceback.format_exc())
+        if conn:
+            conn.rollback()
+        return False
+    except Exception as e:
+        logger.error(f"update_product_stock: Unexpected error - {type(e).__name__}: {str(e)}")
+        logger.error(traceback.format_exc())
+        if conn:
+            conn.rollback()
+        return False
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception as e:
+                logger.error(f"update_product_stock: Error closing connection - {str(e)}")
+
 # Cart operations
 def get_cart_items(user_id):
     """Get all items in user's cart with stock information."""
