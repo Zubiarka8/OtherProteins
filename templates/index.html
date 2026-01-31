@@ -22,7 +22,7 @@
             {% for produktua in produktuak %}
             <div class="col-md-4">
                 <div class="card mb-4">
-                    <img src="https://via.placeholder.com/250x200" class="card-img-top" alt="{{ produktua.izena }}">
+                    <img src="{{ produktua.irudi_urla or 'https://via.placeholder.com/250x200' }}" class="card-img-top" alt="{{ produktua.izena }}">
                     <div class="card-body">
                         <h5 class="card-title">{{ produktua.izena }}</h5>
                         <p class="card-text">{{ produktua.deskribapena }}</p>
@@ -36,9 +36,21 @@
         </div>
         <div class="my-4">
             <h2>Saskia</h2>
-            <form action="{{ url_for('checkout') }}" method="post">
-                <button type="submit" class="btn btn-success">Erosi</button>
-            </form>
+            {% if cart_items %}
+                <ul class="list-group mb-3">
+                    {% for item in cart_items %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <span>{{ item.izena }} - {{ item.kantitatea }} x {{ "%.2f"|format(item.prezioa) }}€</span>
+                        <span class="badge bg-primary rounded-pill">{{ "%.2f"|format(item.kantitatea * item.prezioa) }}€</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                <form action="{{ url_for('checkout') }}" method="post">
+                    <button type="submit" class="btn btn-success">Erosi</button>
+                </form>
+            {% else %}
+                <p>Saskia hutsik dago.</p>
+            {% endif %}
         </div>
     </div>
 </body>
