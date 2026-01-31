@@ -2630,15 +2630,17 @@ def create_app():
                 flash('ℹ️ Ez da aldaketarik egin. Produktuen datuak berdinak dira.', 'info')
             
             # Preserve sorting parameters when redirecting
-            order_by = request.args.get('order_by', 'produktu_id')
-            direction = request.args.get('direction', 'asc')
+            # Get from URL args (form action includes them) or default
+            order_by = request.args.get('order_by') or request.form.get('order_by') or 'produktu_id'
+            direction = request.args.get('direction') or request.form.get('direction') or 'asc'
             return redirect(url_for('admin_stock', order_by=order_by, direction=direction))
+        except Exception as e:
             logger.error(f"Unexpected error in admin_update_stock: {type(e).__name__}: {str(e)}")
             logger.error(traceback.format_exc())
             flash('❌ Errore larria gertatu da produktuen datuak eguneratzean. Mesedez, saiatu berriro.', 'danger')
             # Preserve sorting parameters when redirecting
-            order_by = request.args.get('order_by', 'produktu_id')
-            direction = request.args.get('direction', 'asc')
+            order_by = request.args.get('order_by') or request.form.get('order_by') or 'produktu_id'
+            direction = request.args.get('direction') or request.form.get('direction') or 'asc'
             return redirect(url_for('admin_stock', order_by=order_by, direction=direction))
 
     # Generic error handlers
