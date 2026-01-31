@@ -71,6 +71,20 @@ def create_app():
     app = Flask(__name__, template_folder='templates')
     app.config['SECRET_KEY'] = 'a_very_secret_key'  # Replace in production
     
+    # Template filter to translate order status to Basque
+    @app.template_filter('egoera_izena')
+    def egoera_izena_filter(egoera):
+        """Translate order status to Basque."""
+        translations = {
+            'prozesatzen': 'Prozesatzen',
+            'pagado': 'Ordainduta',
+            'bidalita': 'Bidalita',
+            'bukatuta': 'Bukatuta',
+            'bertan_behera': 'Bertan behera utzita',
+            'pendiente': 'Zain'
+        }
+        return translations.get(egoera.lower() if egoera else '', egoera.title() if egoera else '')
+    
     # Context processor for template variables (e.g., current year, cart count)
     @app.context_processor
     def inject_template_vars():
@@ -643,8 +657,12 @@ def create_app():
                 return redirect(url_for('cart'))
             
             # Create order with error handling
+            # If user is admin@gmail.com, set status to 'pagado' automatically
+            user_email = session.get('user_email', '')
+            order_status = 'pagado' if user_email == 'admin@gmail.com' else 'prozesatzen'
+            
             try:
-                order_id = create_order(user_id, status='prozesatzen')
+                order_id = create_order(user_id, status=order_status)
             except sqlite3.IntegrityError as e:
                 error_msg = str(e).lower()
                 if "foreign key" in error_msg:

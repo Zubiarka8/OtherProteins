@@ -32,11 +32,12 @@
                         <div class="text-end">
                             <span class="badge 
                                 {% if order.egoera == 'prozesatzen' %}bg-warning
+                                {% elif order.egoera == 'pagado' %}bg-success
                                 {% elif order.egoera == 'bidalita' %}bg-info
                                 {% elif order.egoera == 'bukatuta' %}bg-success
                                 {% elif order.egoera == 'bertan_behera' %}bg-danger
                                 {% else %}bg-secondary{% endif %} fs-6">
-                                {{ order.egoera|title }}
+                                {{ order.egoera|egoera_izena }}
                             </span>
                         </div>
                     </div>
@@ -166,6 +167,20 @@
                                 <i class="bi bi-check-circle"></i> Eskaera iritsi
                             </button>
                         </form>
+                        {% if order.can_cancel and order.egoera != 'bertan_behera' %}
+                        <form action="{{ url_for('cancel_order_route', order_id=order.eskaera_id) }}" method="post" 
+                              onsubmit="return confirm('Ziur zaude eskaera hau bertan behera utzi nahi duzula? Stocka berreskuratuko da baina dirua ez da itzuliko 24 ordu baino gehiago igaro badira.');">
+                            <button type="submit" class="btn btn-danger w-100">
+                                <i class="bi bi-x-circle"></i> Bertan behera utzi
+                            </button>
+                        </form>
+                        {% endif %}
+                        {% elif order.egoera == 'pagado' %}
+                        <div class="alert alert-success mb-3 alert-permanent">
+                            <i class="bi bi-credit-card"></i> 
+                            <strong>Eskaera ordainduta!</strong><br>
+                            <small>Eskaera ordainduta dago. Prozesatzen hasiko da laster.</small>
+                        </div>
                         {% if order.can_cancel and order.egoera != 'bertan_behera' %}
                         <form action="{{ url_for('cancel_order_route', order_id=order.eskaera_id) }}" method="post" 
                               onsubmit="return confirm('Ziur zaude eskaera hau bertan behera utzi nahi duzula? Stocka berreskuratuko da baina dirua ez da itzuliko 24 ordu baino gehiago igaro badira.');">

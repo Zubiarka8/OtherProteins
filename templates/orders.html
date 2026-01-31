@@ -24,10 +24,12 @@
                     <p class="mb-3">
                         <span class="badge 
                             {% if order.egoera == 'prozesatzen' %}bg-warning
+                            {% elif order.egoera == 'pagado' %}bg-success
                             {% elif order.egoera == 'bidalita' %}bg-info
                             {% elif order.egoera == 'bukatuta' %}bg-success
+                            {% elif order.egoera == 'bertan_behera' %}bg-danger
                             {% else %}bg-secondary{% endif %}">
-                            {{ order.egoera|title }}
+                            {{ order.egoera|egoera_izena }}
                         </span>
                     </p>
                     <a href="{{ url_for('order_detail', order_id=order.eskaera_id) }}" class="btn btn-outline-primary btn-sm">
