@@ -2632,8 +2632,7 @@ def create_app():
             # Preserve sorting parameters when redirecting
             order_by = request.args.get('order_by', 'produktu_id')
             direction = request.args.get('direction', 'asc')
-            return redirect(url_for('admin_stock', order_by=order_by, direction=direction))Changes before Firebase Studio auto-runChanges before Firebase Studio auto-run
-        except Exception as e:
+            return redirect(url_for('admin_stock', order_by=order_by, direction=direction))
             logger.error(f"Unexpected error in admin_update_stock: {type(e).__name__}: {str(e)}")
             logger.error(traceback.format_exc())
             flash('❌ Errore larria gertatu da produktuen datuak eguneratzean. Mesedez, saiatu berriro.', 'danger')
