@@ -113,18 +113,14 @@ Honek instalatuko du:
 
 ### Datu-basea Hasieratzea
 
-Datu-basea automatikoki hasieratzen da aplikazioa lehen aldiz exekutatzean. Berriro hasieratu behar baduzu:
-
-```bash
-python database.py
-```
-
-Honek sortuko du:
+Datu-basea automatikoki hasieratzen da aplikazioa lehen aldiz exekutatzean. Honek sortzen du:
 - Beharrezko taulak (erabiltzaileak, produktuak, kategoriak, eskaerak, saskia)
 - Lehenetsitako administratzaile erabiltzailea:
   - **Email**: `admin@gmail.com`
   - **Pasahitza**: `admin123`
-- Adibide datuak (produktuak eta kategoriak)
+- Kategoriak (Proteina, Kreatina, Pre-entrenamendua, Barritak)
+
+**Oharra**: Produktuak administratzaile panelaren bidez gehi daitezke soilik.
 
 ### Segurtasun Konfigurazioa
 
@@ -287,9 +283,8 @@ Erroreak honakoetan erregistratzen dira:
 ### Produktu Berriak Gehitzea
 
 Produktuak honako moduetan gehi daitezke:
-1. Datu-basean zuzenean
-2. Administrazio panelaren bidez (izenak editatu)
-3. `database.py` aldatuz eta `python database.py` exekutatuz
+1. Administrazio panelaren bidez (`/admin/stock` orria)
+2. Datu-basean zuzenean (SQLite kontsola erabiliz)
 
 ## 🐛 Arazoak Konpontzea
 
@@ -309,10 +304,7 @@ pip install -r requirements.txt
 
 ### Errorea: "No such table: produktuak"
 
-**Konponbidea**: Hasieratu datu-basea:
-```bash
-python database.py
-```
+**Konponbidea**: Datu-basea automatikoki hasieratzen da aplikazioa lehen aldiz exekutatzean. Aplikazioa berriro abiarazi eta datu-basea automatikoki sortuko da.
 
 ### Aplikazioa ez da abiarazten 5000 portuan
 

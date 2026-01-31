@@ -171,23 +171,31 @@
 <script>
 function toggleAddressField() {
     const etxeraRadio = document.getElementById('etxera');
+    const tiendaRadio = document.getElementById('tienda');
     const addressField = document.getElementById('addressField');
     const requiredFields = ['kalea', 'hiria', 'probintzia', 'posta_kodea'];
     
-    if (etxeraRadio.checked) {
+    if (etxeraRadio && etxeraRadio.checked) {
         addressField.style.display = 'block';
         requiredFields.forEach(fieldId => {
-            document.getElementById(fieldId).required = true;
+            const field = document.getElementById(fieldId);
+            if (field) field.required = true;
         });
         updateShippingCost(true);
     } else {
         addressField.style.display = 'none';
         requiredFields.forEach(fieldId => {
-            document.getElementById(fieldId).required = false;
+            const field = document.getElementById(fieldId);
+            if (field) field.required = false;
         });
         updateShippingCost(false);
     }
 }
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    toggleAddressField();
+});
 
 // Build full address string before form submission
 document.querySelector('form').addEventListener('submit', function(e) {

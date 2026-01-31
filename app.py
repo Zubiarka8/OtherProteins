@@ -33,6 +33,7 @@ from db_utils import (
     update_product_price,
     update_product_image,
     update_product_description,
+    delete_product,
     update_user_info
 )
 
@@ -581,6 +582,61 @@ def create_app():
             
             # Handle POST request - process checkout
             
+            # Get and store delivery information
+            entrega_mota = request.form.get('entrega_mota', 'tienda')
+            session['entrega_mota'] = entrega_mota
+            
+            # Calculate shipping cost
+            subtotal = 0.0
+            try:
+                for item in cart_items:
+                    if isinstance(item, dict):
+                        quantity = item.get('kantitatea', 0)
+                        price = item.get('prezioa', 0.0)
+                        if isinstance(quantity, (int, float)) and isinstance(price, (int, float)):
+                            subtotal += float(quantity) * float(price)
+            except Exception as e:
+                logger.error(f"Error calculating subtotal in POST: {str(e)}")
+                subtotal = 0.0
+            
+            subtotal = round(subtotal, 2)
+            entrega_kostua = 5.0 if (entrega_mota == 'etxera' and subtotal < 50) else 0.0
+            
+            # Get address information
+            helbidea = None
+            kalea = None
+            zenbakia = None
+            hiria = None
+            probintzia = None
+            posta_kodea = None
+            
+            if entrega_mota == 'etxera':
+                # Get address from form
+                kalea = request.form.get('kalea', '').strip() or None
+                zenbakia = request.form.get('zenbakia', '').strip() or None
+                hiria = request.form.get('hiria', '').strip() or None
+                probintzia = request.form.get('probintzia', '').strip() or None
+                posta_kodea = request.form.get('posta_kodea', '').strip() or None
+                
+                # Build full address string
+                address_parts = [kalea, zenbakia, posta_kodea, hiria, probintzia]
+                address_parts = [part for part in address_parts if part]
+                helbidea = ', '.join(address_parts) if address_parts else None
+                
+                # Store in session
+                session['kalea'] = kalea or ''
+                session['zenbakia'] = zenbakia or ''
+                session['hiria'] = hiria or ''
+                session['probintzia'] = probintzia or ''
+                session['posta_kodea'] = posta_kodea or ''
+            else:
+                # Clear delivery address if picking up in store
+                session.pop('kalea', None)
+                session.pop('zenbakia', None)
+                session.pop('hiria', None)
+                session.pop('probintzia', None)
+                session.pop('posta_kodea', None)
+            
             # Verify stock availability and reduce stock
             all_stock_available = True
             insufficient_products = []
@@ -670,7 +726,18 @@ def create_app():
             order_status = 'pagado' if user_email == 'admin@gmail.com' else 'prozesatzen'
             
             try:
-                order_id = create_order(user_id, status=order_status)
+                order_id = create_order(
+                    user_id, 
+                    status=order_status,
+                    entrega_mota=entrega_mota,
+                    entrega_kostua=entrega_kostua,
+                    helbidea=helbidea,
+                    kalea=kalea,
+                    zenbakia=zenbakia,
+                    hiria=hiria,
+                    probintzia=probintzia,
+                    posta_kodea=posta_kodea
+                )
             except sqlite3.IntegrityError as e:
                 error_msg = str(e).lower()
                 if "foreign key" in error_msg:
@@ -732,6 +799,76 @@ def create_app():
             return redirect(url_for('cart'))
         except Exception as e:
             logger.error(f"Checkout: Unexpected error - {type(e).__name__}: {str(e)}")
+            logger.error(traceback.format_exc())
+            flash('Errore larria gertatu da. Mesedez, saiatu berriro.', 'danger')
+            return redirect(url_for('cart'))
+
+    @app.route('/payment', methods=['GET', 'POST'])
+    def payment():
+        """Display payment form (GET) or process payment (POST)."""
+        try:
+            # Get user_id from session - require login
+            user_id = session.get('user_id')
+            
+            # Validate user_id - require login
+            if not user_id or not isinstance(user_id, int) or user_id <= 0:
+                logger.warning(f"User not logged in, redirecting to login")
+                flash('Mesedez, saioa hasi ordainketa burutzeko.', 'warning')
+                return redirect(url_for('login'))
+            
+            # Get cart items with error handling
+            try:
+                cart_items = get_cart_items(user_id)
+            except Exception as e:
+                logger.error(f"Error getting cart items for payment: {str(e)}")
+                logger.error(traceback.format_exc())
+                flash('Errorea gertatu da saskia eskuratzean.', 'danger')
+                return redirect(url_for('cart'))
+            
+            # Verify cart is not empty
+            if not cart_items or not isinstance(cart_items, list) or len(cart_items) == 0:
+                flash('Saskia hutsik dago. Ezin da ordainketa burutu.', 'warning')
+                return redirect(url_for('index'))
+            
+            # Handle GET request - show payment form
+            if request.method == 'GET':
+                # Calculate totals for display
+                subtotal = 0.0
+                try:
+                    for item in cart_items:
+                        if isinstance(item, dict):
+                            quantity = item.get('kantitatea', 0)
+                            price = item.get('prezioa', 0.0)
+                            if isinstance(quantity, (int, float)) and isinstance(price, (int, float)):
+                                subtotal += float(quantity) * float(price)
+                except Exception as e:
+                    logger.error(f"Error calculating subtotal: {str(e)}")
+                    subtotal = 0.0
+                
+                subtotal = round(subtotal, 2)
+                entrega_kostua = 5.0 if subtotal < 50 else 0.0
+                total = subtotal + entrega_kostua
+                
+                # Get delivery info from session if available
+                entrega_mota = session.get('entrega_mota', 'tienda')
+                hiria = session.get('hiria', '')
+                probintzia = session.get('probintzia', '')
+                
+                return render_template('payment.html', 
+                                     cart_items=cart_items,
+                                     subtotal=subtotal,
+                                     entrega_kostua=entrega_kostua,
+                                     total=total,
+                                     entrega_mota=entrega_mota,
+                                     hiria=hiria,
+                                     probintzia=probintzia)
+            
+            # Handle POST request - process payment (redirect to checkout to create order)
+            # Payment is processed in checkout, this is just a form step
+            return redirect(url_for('checkout'))
+            
+        except Exception as e:
+            logger.error(f"Unexpected error in payment: {type(e).__name__}: {str(e)}")
             logger.error(traceback.format_exc())
             flash('Errore larria gertatu da. Mesedez, saiatu berriro.', 'danger')
             return redirect(url_for('cart'))
@@ -2641,6 +2778,53 @@ def create_app():
             # Preserve sorting parameters when redirecting
             order_by = request.args.get('order_by') or request.form.get('order_by') or 'produktu_id'
             direction = request.args.get('direction') or request.form.get('direction') or 'asc'
+            return redirect(url_for('admin_stock', order_by=order_by, direction=direction))
+
+    @app.route('/admin/stock/delete/<int:product_id>', methods=['POST'])
+    def admin_delete_product(product_id):
+        """Delete a product from the database."""
+        try:
+            # Check if user is logged in
+            if 'user_id' not in session:
+                flash('Mesedez, saioa hasi produktua ezabatzeko.', 'warning')
+                return redirect(url_for('login'))
+            
+            user_id = session.get('user_id')
+            if not user_id or not isinstance(user_id, int) or user_id <= 0:
+                flash('Erabiltzaile ID baliogabea.', 'warning')
+                return redirect(url_for('login'))
+            
+            # Check if user is admin
+            if not session.get('is_admin', False):
+                if not is_admin(user_id):
+                    flash('Ez duzu baimenik produktua ezabatzeko.', 'danger')
+                    return redirect(url_for('index'))
+                session['is_admin'] = True
+            
+            # Get product info before deletion for flash message
+            product = get_product_by_id(product_id)
+            product_name = product.get('izena', f'Produktua {product_id}') if product else f'Produktua {product_id}'
+            
+            # Delete the product
+            success = delete_product(product_id)
+            
+            if success:
+                flash(f'✅ {product_name} produktua ondo ezabatu da.', 'success')
+            else:
+                flash(f'❌ Errorea gertatu da {product_name} produktua ezabatzean.', 'danger')
+            
+            # Preserve sorting parameters when redirecting
+            order_by = request.args.get('order_by', 'produktu_id')
+            direction = request.args.get('direction', 'asc')
+            return redirect(url_for('admin_stock', order_by=order_by, direction=direction))
+            
+        except Exception as e:
+            logger.error(f"Unexpected error in admin_delete_product: {type(e).__name__}: {str(e)}")
+            logger.error(traceback.format_exc())
+            flash('❌ Errore larria gertatu da produktua ezabatzean. Mesedez, saiatu berriro.', 'danger')
+            # Preserve sorting parameters when redirecting
+            order_by = request.args.get('order_by', 'produktu_id')
+            direction = request.args.get('direction', 'asc')
             return redirect(url_for('admin_stock', order_by=order_by, direction=direction))
 
     # Generic error handlers

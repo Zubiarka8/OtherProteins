@@ -102,6 +102,7 @@
                                     </a>
                                 </th>
                                 <th class="text-center" style="min-width: 300px;">Stock-a Eguneratu</th>
+                                <th class="text-center" style="min-width: 120px;">Ekintzak</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -196,6 +197,16 @@
                                             <i class="bi bi-plus-lg"></i>
                                         </button>
                                     </div>
+                                </td>
+                                <td class="text-center">
+                                    <form method="POST" 
+                                          action="{{ url_for('admin_delete_product', product_id=product.produktu_id, order_by=order_by, direction=direction) }}" 
+                                          style="display: inline;"
+                                          onsubmit="return confirmDelete('{{ product.izena|replace("'", "\\'") }}');">
+                                        <button type="submit" class="btn btn-danger btn-sm" title="Produktua ezabatu">
+                                            <i class="bi bi-trash"></i> Ezabatu
+                                        </button>
+                                    </form>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -336,6 +347,11 @@ function hasChanges() {
     }
     
     return false;
+}
+
+// Confirm product deletion
+function confirmDelete(productName) {
+    return confirm(`⚠️ Ziur zaude "${productName}" produktua ezabatu nahi duzula?\n\nProduktua betiko ezabatuko da eta ezin da desegin.\n\nProduktua saskietan eta eskaeretan dagoen arren, produktua ezabatuko da.`);
 }
 
 // Intercept form submission

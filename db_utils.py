@@ -773,6 +773,71 @@ def update_product_image(product_id, image_url):
             except Exception as e:
                 logger.error(f"update_product_image: Error closing connection - {str(e)}")
 
+def delete_product(product_id):
+    """Delete a product from the database. Returns True if successful, False otherwise."""
+    if not product_id or not isinstance(product_id, int) or product_id <= 0:
+        logger.warning(f"delete_product: Invalid product_id - {product_id}")
+        return False
+    
+    conn = None
+    try:
+        conn = get_db_connection()
+        if not conn:
+            logger.error("delete_product: Failed to get database connection")
+            return False
+        
+        cursor = conn.cursor()
+        
+        # Check if product exists
+        cursor.execute('SELECT produktu_id, izena FROM produktuak WHERE produktu_id = ?', (product_id,))
+        result = cursor.fetchone()
+        
+        if not result:
+            logger.warning(f"delete_product: Product {product_id} not found")
+            return False
+        
+        # Delete product from cart items first (foreign key constraint)
+        cursor.execute('DELETE FROM saski_elementuak WHERE produktu_id = ?', (product_id,))
+        
+        # Delete product from order items (if any exist, they will be kept for historical records)
+        # Actually, we should keep order items for historical records, so we'll just delete the product
+        
+        # Delete the product
+        cursor.execute('DELETE FROM produktuak WHERE produktu_id = ?', (product_id,))
+        
+        if cursor.rowcount == 0:
+            logger.warning(f"delete_product: No rows deleted for product {product_id}")
+            conn.rollback()
+            return False
+        
+        conn.commit()
+        logger.info(f"delete_product: Deleted product {product_id} ({result['izena']})")
+        return True
+    except sqlite3.IntegrityError as e:
+        logger.error(f"delete_product: Integrity error deleting product {product_id} - {str(e)}")
+        logger.error(traceback.format_exc())
+        if conn:
+            conn.rollback()
+        return False
+    except sqlite3.Error as e:
+        logger.error(f"delete_product: Database error - {str(e)}")
+        logger.error(traceback.format_exc())
+        if conn:
+            conn.rollback()
+        return False
+    except Exception as e:
+        logger.error(f"delete_product: Unexpected error - {type(e).__name__}: {str(e)}")
+        logger.error(traceback.format_exc())
+        if conn:
+            conn.rollback()
+        return False
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception as e:
+                logger.error(f"delete_product: Error closing connection - {str(e)}")
+
 def update_product_description(product_id, description):
     """Update product description. Returns True if successful, False otherwise."""
     if not product_id or not isinstance(product_id, int) or product_id <= 0:
@@ -1218,7 +1283,8 @@ def clear_cart(user_id):
                 logger.error(f"clear_cart: Error closing connection - {str(e)}")
 
 # Order operations
-def create_order(user_id, status='pendiente'):
+def create_order(user_id, status='pendiente', entrega_mota='tienda', entrega_kostua=0.0, 
+                 helbidea=None, kalea=None, zenbakia=None, hiria=None, probintzia=None, posta_kodea=None):
     """Create a new order from user's cart."""
     # Validate inputs
     if not user_id or not isinstance(user_id, int) or user_id <= 0:
@@ -1228,6 +1294,24 @@ def create_order(user_id, status='pendiente'):
     if not status or not isinstance(status, str):
         status = 'pendiente'
     status = status.strip()[:50]
+    
+    # Validate entrega_mota
+    if not entrega_mota or not isinstance(entrega_mota, str):
+        entrega_mota = 'tienda'
+    entrega_mota = entrega_mota.strip()[:50]
+    
+    # Validate entrega_kostua
+    if not isinstance(entrega_kostua, (int, float)) or entrega_kostua < 0:
+        entrega_kostua = 0.0
+    entrega_kostua = float(entrega_kostua)
+    
+    # Sanitize address fields
+    helbidea = str(helbidea).strip()[:500] if helbidea else None
+    kalea = str(kalea).strip()[:200] if kalea else None
+    zenbakia = str(zenbakia).strip()[:50] if zenbakia else None
+    hiria = str(hiria).strip()[:100] if hiria else None
+    probintzia = str(probintzia).strip()[:100] if probintzia else None
+    posta_kodea = str(posta_kodea).strip()[:20] if posta_kodea else None
     
     conn = None
     try:
@@ -1244,11 +1328,13 @@ def create_order(user_id, status='pendiente'):
         
         cursor = conn.cursor()
         
-        # Create order header
+        # Create order header with delivery information
         cursor.execute('''
-            INSERT INTO eskaerak (erabiltzaile_id, egoera)
-            VALUES (?, ?)
-        ''', (user_id, status))
+            INSERT INTO eskaerak (erabiltzaile_id, egoera, entrega_mota, entrega_kostua, 
+                                 helbidea, kalea, zenbakia, hiria, probintzia, posta_kodea)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (user_id, status, entrega_mota, entrega_kostua, 
+              helbidea, kalea, zenbakia, hiria, probintzia, posta_kodea))
         order_id = cursor.lastrowid
         
         if not order_id or order_id <= 0:
