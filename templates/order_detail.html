@@ -215,6 +215,14 @@
                             <small>Eskerrik asko zure erosketagatik. Zure iritzia baliagarria da guretzat!</small>
                         </div>
                         {% endif %}
+                        
+                        <!-- Download Invoice Button -->
+                        <hr class="my-3">
+                        <a href="{{ url_for('download_invoice', order_id=order.eskaera_id) }}" 
+                           class="btn btn-outline-primary w-100" 
+                           target="_blank">
+                            <i class="bi bi-file-earmark-pdf"></i> Faktura deskargatu (PDF)
+                        </a>
                     </div>
                     
                     <div class="mt-4">

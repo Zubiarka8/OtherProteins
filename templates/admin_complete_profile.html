@@ -1,0 +1,89 @@
+{% extends "layout.html" %}
+
+{% block title %}Datuak Osatu - OtherProteins{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="bi bi-person-fill"></i> Datuak Osatu
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>Garrantzitsua:</strong> Faktura sortu aurretik, mesedez sartu bezeroaren datu pertsonalak.
+                    </div>
+                    
+                    <form method="POST" action="{{ url_for('admin_complete_profile') }}">
+                        <div class="mb-3">
+                            <label for="izena" class="form-label">
+                                <i class="bi bi-person"></i> Bezeroaren Izena <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" 
+                                   class="form-control" 
+                                   id="izena" 
+                                   name="izena" 
+                                   value="{{ form_data.izena if form_data and form_data.izena else '' }}" 
+                                   required 
+                                   placeholder="Bezeroaren izena">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="abizenak" class="form-label">
+                                <i class="bi bi-person"></i> Bezeroaren Abizenak <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" 
+                                   class="form-control" 
+                                   id="abizenak" 
+                                   name="abizenak" 
+                                   value="{{ form_data.abizenak if form_data and form_data.abizenak else '' }}" 
+                                   required 
+                                   placeholder="Bezeroaren abizenak">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="helbide_elektronikoa" class="form-label">
+                                <i class="bi bi-envelope"></i> Bezeroaren Email <span class="text-danger">*</span>
+                            </label>
+                            <input type="email" 
+                                   class="form-control" 
+                                   id="helbide_elektronikoa" 
+                                   name="helbide_elektronikoa" 
+                                   value="{{ form_data.helbide_elektronikoa if form_data and form_data.helbide_elektronikoa else '' }}" 
+                                   required 
+                                   placeholder="bezeroa@email.com">
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label for="telefonoa" class="form-label">
+                                <i class="bi bi-telephone"></i> Bezeroaren Telefono Zenbakia <span class="text-danger">*</span>
+                            </label>
+                            <input type="tel" 
+                                   class="form-control" 
+                                   id="telefonoa" 
+                                   name="telefonoa" 
+                                   value="{{ form_data.telefonoa if form_data and form_data.telefonoa else '' }}" 
+                                   required 
+                                   placeholder="+34 600 000 000">
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="bi bi-check-circle"></i> Datuak Gorde
+                            </button>
+                            <a href="{{ url_for('orders') }}" class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-left"></i> Itzuli
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

@@ -83,6 +83,48 @@ def create_user(email, password, first_name, last_name, phone=None):
             except Exception as e:
                 logger.error(f"create_user: Error closing connection - {str(e)}")
 
+def get_user_by_id(user_id):
+    """Get user by ID."""
+    # Validate input
+    if not user_id or not isinstance(user_id, int) or user_id <= 0:
+        logger.warning(f"get_user_by_id: Invalid user_id - {user_id}")
+        return None
+    
+    conn = None
+    try:
+        conn = get_db_connection()
+        if not conn:
+            logger.error("get_user_by_id: Failed to get database connection")
+            return None
+        
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM erabiltzaileak WHERE erabiltzaile_id = ?', (user_id,))
+        row = cursor.fetchone()
+        
+        if not row:
+            logger.warning(f"get_user_by_id: User {user_id} not found")
+            return None
+        
+        try:
+            return dict(row)
+        except Exception as e:
+            logger.warning(f"get_user_by_id: Error converting row to dict - {str(e)}")
+            return None
+    except sqlite3.Error as e:
+        logger.error(f"get_user_by_id: Database error - {str(e)}")
+        logger.error(traceback.format_exc())
+        return None
+    except Exception as e:
+        logger.error(f"get_user_by_id: Unexpected error - {type(e).__name__}: {str(e)}")
+        logger.error(traceback.format_exc())
+        return None
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception as e:
+                logger.error(f"get_user_by_id: Error closing connection - {str(e)}")
+
 def get_user_by_email(email):
     """Get user by email address."""
     # Validate input
@@ -1096,6 +1138,49 @@ def get_user_orders(user_id):
             except Exception as e:
                 logger.error(f"get_user_orders: Error closing connection - {str(e)}")
 
+def get_all_orders():
+    """Get all orders from all users (for admin)."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        if not conn:
+            logger.error("get_all_orders: Failed to get database connection")
+            return []
+        
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT e.*, u.izena as erabiltzaile_izena, u.abizenak as erabiltzaile_abizenak, 
+                   u.helbide_elektronikoa as erabiltzaile_email
+            FROM eskaerak e
+            LEFT JOIN erabiltzaileak u ON e.erabiltzaile_id = u.erabiltzaile_id
+            ORDER BY e.sormen_data DESC
+        ''')
+        
+        rows = cursor.fetchall()
+        orders = []
+        for row in rows:
+            try:
+                orders.append(dict(row))
+            except Exception as e:
+                logger.warning(f"get_all_orders: Error converting row to dict - {str(e)}")
+                continue
+        
+        return orders
+    except sqlite3.Error as e:
+        logger.error(f"get_all_orders: Database error - {str(e)}")
+        logger.error(traceback.format_exc())
+        return []
+    except Exception as e:
+        logger.error(f"get_all_orders: Unexpected error - {type(e).__name__}: {str(e)}")
+        logger.error(traceback.format_exc())
+        return []
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception as e:
+                logger.error(f"get_all_orders: Error closing connection - {str(e)}")
+
 def get_order_details(order_id):
     """Get order details with items."""
     # Validate input
@@ -1168,4 +1253,78 @@ def update_order_status(order_id, status):
     conn.commit()
     conn.close()
     return True
+
+def update_user_info(user_id, first_name=None, last_name=None, email=None, phone=None):
+    """Update user information."""
+    if not user_id or not isinstance(user_id, int) or user_id <= 0:
+        logger.warning(f"update_user_info: Invalid user_id - {user_id}")
+        return False
+    
+    conn = None
+    try:
+        conn = get_db_connection()
+        if not conn:
+            logger.error("update_user_info: Failed to get database connection")
+            return False
+        
+        cursor = conn.cursor()
+        
+        # Build update query dynamically based on provided fields
+        updates = []
+        values = []
+        
+        if first_name is not None:
+            first_name = first_name.strip()[:100] if first_name else None
+            updates.append('izena = ?')
+            values.append(first_name)
+        
+        if last_name is not None:
+            last_name = last_name.strip()[:100] if last_name else None
+            updates.append('abizenak = ?')
+            values.append(last_name)
+        
+        if email is not None:
+            email = email.strip()[:255] if email else None
+            updates.append('helbide_elektronikoa = ?')
+            values.append(email)
+        
+        if phone is not None:
+            phone = phone.strip()[:50] if phone else None
+            updates.append('telefonoa = ?')
+            values.append(phone)
+        
+        if not updates:
+            logger.warning("update_user_info: No fields to update")
+            return False
+        
+        values.append(user_id)
+        
+        query = f'UPDATE erabiltzaileak SET {", ".join(updates)} WHERE erabiltzaile_id = ?'
+        cursor.execute(query, values)
+        
+        if cursor.rowcount == 0:
+            logger.warning(f"update_user_info: No rows updated for user {user_id}")
+            conn.rollback()
+            return False
+        
+        conn.commit()
+        return True
+    except sqlite3.Error as e:
+        logger.error(f"update_user_info: Database error - {str(e)}")
+        logger.error(traceback.format_exc())
+        if conn:
+            conn.rollback()
+        return False
+    except Exception as e:
+        logger.error(f"update_user_info: Unexpected error - {type(e).__name__}: {str(e)}")
+        logger.error(traceback.format_exc())
+        if conn:
+            conn.rollback()
+        return False
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception as e:
+                logger.error(f"update_user_info: Error closing connection - {str(e)}")
 

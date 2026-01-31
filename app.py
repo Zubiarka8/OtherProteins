@@ -1,10 +1,11 @@
 
-from flask import Flask, render_template, request, flash, redirect, url_for, session
+from flask import Flask, render_template, request, flash, redirect, url_for, session, make_response
 from datetime import datetime, timedelta
 import logging
 import traceback
 import sqlite3
 from werkzeug.exceptions import BadRequest, InternalServerError, NotFound
+from io import BytesIO
 from products import products_bp
 from database import init_db
 from db_utils import (
@@ -15,17 +16,20 @@ from db_utils import (
     reduce_product_stock,
     restore_product_stock,
     get_user_by_email,
+    get_user_by_id,
     get_product_by_id,
     verify_password,
     create_user,
     get_user_orders,
+    get_all_orders,
     get_order_details,
     update_cart_item,
     remove_from_cart,
     clear_cart,
     update_order_status,
     is_admin,
-    update_product_stock
+    update_product_stock,
+    update_user_info
 )
 
 # Configure logging
@@ -1206,25 +1210,37 @@ def create_app():
                 session.clear()
                 return redirect(url_for('login'))
             
-            # Get user orders with error handling
+            # Check if user is admin
+            user_email = session.get('user_email', '')
+            is_user_admin = session.get('is_admin', False)
+            
+            # Get orders - all orders if admin, user orders otherwise
             try:
-                orders = get_user_orders(user_id)
+                if is_user_admin and user_email == 'admin@gmail.com':
+                    # Admin sees all orders from all users
+                    orders = get_all_orders()
+                    is_admin_view = True
+                else:
+                    # Regular user sees only their orders
+                    orders = get_user_orders(user_id)
+                    is_admin_view = False
             except Exception as e:
-                logger.error(f"Error getting user orders: {str(e)}")
+                logger.error(f"Error getting orders: {str(e)}")
                 logger.error(traceback.format_exc())
                 flash('Errorea gertatu da eskaerak eskuratzean.', 'danger')
                 orders = []
+                is_admin_view = False
             
             if not isinstance(orders, list):
                 logger.warning(f"Invalid orders format: {type(orders)}")
                 orders = []
             
-            return render_template('orders.html', orders=orders)
+            return render_template('orders.html', orders=orders, is_admin_view=is_admin_view)
         except Exception as e:
             logger.error(f"Unexpected error in orders: {str(e)}")
             logger.error(traceback.format_exc())
             flash('Errore larria gertatu da. Mesedez, saiatu berriro.', 'danger')
-            return render_template('orders.html', orders=[]), 500
+            return render_template('orders.html', orders=[], is_admin_view=False), 500
 
     @app.route('/order/<int:order_id>')
     def order_detail(order_id):
@@ -1555,6 +1571,649 @@ def create_app():
             logger.error(traceback.format_exc())
             flash('Errore larria gertatu da. Mesedez, saiatu berriro.', 'danger')
             return redirect(url_for('orders'))
+
+    def generate_invoice_pdf(order_data, invoice_user_data=None):
+        """Generate a PDF invoice/ticket for an order.
+        
+        Args:
+            order_data: Order data from database
+            invoice_user_data: Optional dict with user data for invoice (izena, abizenak, helbide_elektronikoa, telefonoa)
+                              If provided, these values will be used instead of database values.
+        """
+        try:
+            # Import reportlab only when needed
+            try:
+                from reportlab.lib.pagesizes import A4
+                from reportlab.lib import colors
+                from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+                from reportlab.lib.units import mm, inch
+                from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, KeepTogether
+            except ImportError:
+                logger.error("reportlab library is not installed. Please install it with: pip install reportlab")
+                return None
+            
+            buffer = BytesIO()
+            doc = SimpleDocTemplate(buffer, pagesize=A4, 
+                                    rightMargin=30*mm, leftMargin=30*mm,
+                                    topMargin=30*mm, bottomMargin=30*mm)
+            elements = []
+            
+            # Styles
+            styles = getSampleStyleSheet()
+            
+            # Company header style
+            company_title_style = ParagraphStyle(
+                'CompanyTitle',
+                parent=styles['Heading1'],
+                fontSize=28,
+                textColor=colors.HexColor('#2c3e50'),
+                spaceAfter=5,
+                alignment=1,  # Center
+                fontName='Helvetica-Bold'
+            )
+            
+            # Invoice title style
+            invoice_title_style = ParagraphStyle(
+                'InvoiceTitle',
+                parent=styles['Normal'],
+                fontSize=18,
+                textColor=colors.HexColor('#34495e'),
+                spaceAfter=20,
+                alignment=1,  # Center
+                fontName='Helvetica-Bold'
+            )
+            
+            # Section heading style
+            heading_style = ParagraphStyle(
+                'SectionHeading',
+                parent=styles['Heading2'],
+                fontSize=14,
+                textColor=colors.HexColor('#2c3e50'),
+                spaceAfter=10,
+                spaceBefore=15,
+                fontName='Helvetica-Bold'
+            )
+            
+            # Normal text style
+            normal_style = ParagraphStyle(
+                'NormalText',
+                parent=styles['Normal'],
+                fontSize=10,
+                textColor=colors.HexColor('#34495e'),
+                leading=12
+            )
+            
+            # Company info style
+            company_info_style = ParagraphStyle(
+                'CompanyInfo',
+                parent=styles['Normal'],
+                fontSize=9,
+                textColor=colors.HexColor('#7f8c8d'),
+                alignment=1,  # Center
+                leading=11
+            )
+            
+            # Header with company info
+            header_data = [
+                [Paragraph("<b>OtherProteins</b>", company_title_style)],
+                [Paragraph("Proteina eta Nutrizio Produktuak", company_info_style)],
+                [Paragraph("www.otherproteins.com | info@otherproteins.com", company_info_style)],
+                [Spacer(1, 15)],
+                [Paragraph("<b>FAKTURA</b>", invoice_title_style)]
+            ]
+            
+            header_table = Table(header_data, colWidths=[180*mm])
+            header_table.setStyle(TableStyle([
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('LEFTPADDING', (0, 0), (-1, -1), 0),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+                ('TOPPADDING', (0, 0), (-1, -1), 0),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+            ]))
+            elements.append(header_table)
+            elements.append(Spacer(1, 25))
+            
+            # Order info
+            order_id = order_data.get('eskaera_id', 'N/A')
+            order_date = order_data.get('sormen_data', '')
+            order_date_formatted = 'N/A'
+            if order_date and len(order_date) >= 10:
+                try:
+                    # Format date nicely
+                    date_obj = datetime.strptime(order_date[:10], '%Y-%m-%d')
+                    order_date_formatted = date_obj.strftime('%Y-%m-%d')
+                except:
+                    order_date_formatted = order_date[:10] if len(order_date) >= 10 else 'N/A'
+            
+            # Get user info - use invoice_user_data if provided, otherwise from database
+            if invoice_user_data:
+                # Use data from form (for admin)
+                customer_name = f"{invoice_user_data.get('izena', '')} {invoice_user_data.get('abizenak', '')}".strip()
+                customer_email = invoice_user_data.get('helbide_elektronikoa', '')
+                customer_phone = invoice_user_data.get('telefonoa', 'N/A') if invoice_user_data.get('telefonoa') else 'N/A'
+            else:
+                # Get user info from database
+                user_id = order_data.get('erabiltzaile_id')
+                user_info = None
+                if user_id:
+                    try:
+                        user_info = get_user_by_id(user_id)
+                    except Exception as e:
+                        logger.warning(f"Error getting user info for PDF: {str(e)}")
+                        pass
+                
+                # Customer info
+                if user_info:
+                    customer_name = f"{user_info.get('izena', '')} {user_info.get('abizenak', '')}".strip()
+                    customer_email = user_info.get('helbide_elektronikoa', '')
+                    customer_phone = user_info.get('telefonoa', 'N/A') if user_info.get('telefonoa') else 'N/A'
+                else:
+                    customer_name = "Bezero ezezaguna"
+                    customer_email = "N/A"
+                    customer_phone = "N/A"
+            
+            # Translate order status
+            status_translations = {
+                'prozesatzen': 'Prozesatzen',
+                'pagado': 'Ordainduta',
+                'bidalita': 'Bidalita',
+                'bukatuta': 'Bukatuta',
+                'bertan_behera': 'Bertan behera utzita'
+            }
+            order_status = status_translations.get(order_data.get("egoera", "N/A"), order_data.get("egoera", "N/A"))
+            
+            # Information table with better styling
+            info_data = [
+                [Paragraph("<b>ESKAERA INFORMAZIOA</b>", ParagraphStyle('InfoHeader', parent=normal_style, fontSize=11, fontName='Helvetica-Bold', textColor=colors.HexColor('#2c3e50'))),
+                 Paragraph("<b>BEZEROAREN INFORMAZIOA</b>", ParagraphStyle('InfoHeader', parent=normal_style, fontSize=11, fontName='Helvetica-Bold', textColor=colors.HexColor('#2c3e50')))],
+                [Paragraph(f"<b>Eskaera #:</b> {order_id}", normal_style),
+                 Paragraph(f"<b>Izena:</b> {customer_name}", normal_style)],
+                [Paragraph(f"<b>Data:</b> {order_date_formatted}", normal_style),
+                 Paragraph(f"<b>Email:</b> {customer_email}", normal_style)],
+                [Paragraph(f"<b>Egoera:</b> {order_status}", normal_style),
+                 Paragraph(f"<b>Telefonoa:</b> {customer_phone}", normal_style)]
+            ]
+            
+            info_table = Table(info_data, colWidths=[90*mm, 90*mm])
+            info_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3498db')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 11),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+                ('TOPPADDING', (0, 0), (-1, 0), 10),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#ecf0f1')),
+                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 1), (-1, -1), 10),
+                ('TOPPADDING', (0, 1), (-1, -1), 8),
+                ('BOTTOMPADDING', (0, 1), (-1, -1), 8),
+                ('LEFTPADDING', (0, 0), (-1, -1), 10),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#bdc3c7')),
+            ]))
+            elements.append(info_table)
+            elements.append(Spacer(1, 25))
+            
+            # Order items section with improved design
+            elements.append(Spacer(1, 5))
+            section_title = Paragraph(
+                "<b>PRODUKTUAK</b>", 
+                ParagraphStyle(
+                    'SectionTitle',
+                    parent=normal_style,
+                    fontSize=16,
+                    textColor=colors.HexColor('#2c3e50'),
+                    spaceAfter=15,
+                    fontName='Helvetica-Bold'
+                )
+            )
+            elements.append(section_title)
+            
+            items = order_data.get('elementuak', [])
+            if items and isinstance(items, list) and len(items) > 0:
+                # Table header with better formatting
+                header_style = ParagraphStyle(
+                    'TableHeader',
+                    parent=normal_style,
+                    fontSize=11,
+                    fontName='Helvetica-Bold',
+                    textColor=colors.white,
+                    alignment=1
+                )
+                
+                table_data = [
+                    [
+                        Paragraph("<b>PRODUKTUA</b>", header_style),
+                        Paragraph("<b>KANTITATEA</b>", header_style),
+                        Paragraph("<b>PREZIOA UNITATEA</b>", header_style),
+                        Paragraph("<b>GUZTIRA</b>", header_style)
+                    ]
+                ]
+                
+                # Table rows with improved formatting
+                subtotal = 0.0
+                items_added = 0
+                row_style = ParagraphStyle('TableRow', parent=normal_style, fontSize=10)
+                price_style = ParagraphStyle('PriceRow', parent=normal_style, fontSize=10, alignment=2)  # Right align
+                
+                for item in items:
+                    if isinstance(item, dict):
+                        try:
+                            product_name = str(item.get('izena', 'Produktu ezezaguna'))
+                            quantity = item.get('kantitatea', 0)
+                            price = item.get('prezioa', 0.0)
+                            
+                            # Convert to float safely
+                            try:
+                                quantity = float(quantity) if quantity else 0.0
+                                price = float(price) if price else 0.0
+                            except (ValueError, TypeError) as e:
+                                logger.warning(f"Error converting quantity/price to float: {str(e)}")
+                                continue
+                            
+                            if quantity <= 0 or price < 0:
+                                logger.warning(f"Invalid quantity or price: quantity={quantity}, price={price}")
+                                continue
+                            
+                            item_total = quantity * price
+                            subtotal += item_total
+                            
+                            # Format numbers with proper spacing
+                            quantity_str = f"{int(quantity):,}".replace(',', '.')
+                            price_str = f"{price:.2f} €"
+                            total_str = f"{item_total:.2f} €"
+                            
+                            table_data.append([
+                                Paragraph(product_name, row_style),
+                                Paragraph(quantity_str, ParagraphStyle('QuantityRow', parent=normal_style, fontSize=10, alignment=1)),  # Center
+                                Paragraph(price_str, price_style),
+                                Paragraph(total_str, price_style)
+                            ])
+                            items_added += 1
+                        except Exception as e:
+                            logger.warning(f"Error processing order item: {str(e)}")
+                            continue
+                
+                # Check if we have any items
+                if items_added == 0:
+                    logger.warning("No valid items found in order for PDF generation")
+                    elements.append(Paragraph("Ez da produkturik aurkitu eskaera honetan.", normal_style))
+                else:
+                    # Totals section with improved formatting
+                    entrega_kostua = 5.0 if subtotal < 50 else 0.0
+                    total = subtotal + entrega_kostua
+                    
+                    # Separator row
+                    table_data.append(['', '', '', ''])
+                    
+                    # Totals rows with better styling
+                    total_label_style = ParagraphStyle(
+                        'TotalLabel',
+                        parent=normal_style,
+                        fontSize=11,
+                        fontName='Helvetica-Bold',
+                        alignment=2,  # Right align
+                        textColor=colors.HexColor('#2c3e50')
+                    )
+                    total_value_style = ParagraphStyle(
+                        'TotalValue',
+                        parent=normal_style,
+                        fontSize=11,
+                        fontName='Helvetica-Bold',
+                        alignment=2,  # Right align
+                        textColor=colors.HexColor('#2c3e50')
+                    )
+                    
+                    table_data.append([
+                        '',
+                        '',
+                        Paragraph('<b>Azpitotala:</b>', total_label_style),
+                        Paragraph(f'<b>{subtotal:.2f} €</b>', total_value_style)
+                    ])
+                    
+                    if entrega_kostua > 0:
+                        table_data.append([
+                            '',
+                            '',
+                            Paragraph('<b>Bidalketa:</b>', total_label_style),
+                            Paragraph(f'<b>{entrega_kostua:.2f} €</b>', total_value_style)
+                        ])
+                    else:
+                        table_data.append([
+                            '',
+                            '',
+                            Paragraph('Bidalketa:', ParagraphStyle('ShippingLabel', parent=normal_style, fontSize=10, alignment=2, textColor=colors.HexColor('#7f8c8d'))),
+                            Paragraph('Doan', ParagraphStyle('ShippingValue', parent=normal_style, fontSize=10, alignment=2, textColor=colors.HexColor('#27ae60'), fontName='Helvetica-Bold'))
+                        ])
+                    
+                    # Grand total row
+                    grand_total_style = ParagraphStyle(
+                        'GrandTotal',
+                        parent=normal_style,
+                        fontSize=13,
+                        fontName='Helvetica-Bold',
+                        alignment=2,
+                        textColor=colors.white
+                    )
+                    
+                    table_data.append([
+                        '',
+                        '',
+                        Paragraph('<b>GUZTIRA:</b>', grand_total_style),
+                        Paragraph(f'<b>{total:.2f} €</b>', grand_total_style)
+                    ])
+                    
+                    # Create table with enhanced styling
+                    items_table = Table(table_data, colWidths=[105*mm, 22*mm, 28*mm, 25*mm])
+                    items_table.setStyle(TableStyle([
+                        # Header row - Dark blue background
+                        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2c3e50')),
+                        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                        ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+                        ('VALIGN', (0, 0), (-1, 0), 'MIDDLE'),
+                        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                        ('FONTSIZE', (0, 0), (-1, 0), 11),
+                        ('BOTTOMPADDING', (0, 0), (-1, 0), 14),
+                        ('TOPPADDING', (0, 0), (-1, 0), 14),
+                        # Product rows - alternating colors
+                        ('ALIGN', (0, 1), (0, -5), 'LEFT'),
+                        ('ALIGN', (1, 1), (1, -5), 'CENTER'),
+                        ('ALIGN', (2, 1), (2, -5), 'RIGHT'),
+                        ('ALIGN', (3, 1), (3, -5), 'RIGHT'),
+                        ('VALIGN', (0, 1), (-1, -5), 'MIDDLE'),
+                        ('FONTNAME', (0, 1), (-1, -5), 'Helvetica'),
+                        ('FONTSIZE', (0, 1), (-1, -5), 10),
+                        ('TOPPADDING', (0, 1), (-1, -5), 10),
+                        ('BOTTOMPADDING', (0, 1), (-1, -5), 10),
+                        ('ROWBACKGROUNDS', (0, 1), (-1, -5), [colors.white, colors.HexColor('#f8f9fa')]),
+                        # Separator row (empty row before totals)
+                        ('BACKGROUND', (0, -4), (-1, -4), colors.white),
+                        ('TOPPADDING', (0, -4), (-1, -4), 5),
+                        ('BOTTOMPADDING', (0, -4), (-1, -4), 5),
+                        # Totals section - Light gray background
+                        ('BACKGROUND', (0, -3), (-1, -2), colors.HexColor('#ecf0f1')),
+                        ('VALIGN', (0, -3), (-1, -2), 'MIDDLE'),
+                        ('TOPPADDING', (0, -3), (-1, -2), 12),
+                        ('BOTTOMPADDING', (0, -3), (-1, -2), 12),
+                        # Grand total row - Blue background
+                        ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#3498db')),
+                        ('TEXTCOLOR', (0, -1), (-1, -1), colors.white),
+                        ('VALIGN', (0, -1), (-1, -1), 'MIDDLE'),
+                        ('TOPPADDING', (0, -1), (-1, -1), 14),
+                        ('BOTTOMPADDING', (0, -1), (-1, -1), 14),
+                        ('FONTSIZE', (0, -1), (-1, -1), 13),
+                        # Borders
+                        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#bdc3c7')),
+                        ('LINEBELOW', (0, 0), (-1, 0), 2, colors.HexColor('#1a252f')),  # Thicker line below header
+                        ('LINEBELOW', (0, -5), (-1, -5), 1.5, colors.HexColor('#95a5a6')),  # Line before totals
+                        ('LINEABOVE', (0, -1), (-1, -1), 2, colors.HexColor('#2980b9')),  # Line above grand total
+                        # Padding
+                        ('LEFTPADDING', (0, 0), (-1, -1), 10),
+                        ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+                    ]))
+                    elements.append(KeepTogether(items_table))
+            else:
+                logger.warning(f"No items found in order_data for PDF. Items: {items}")
+                elements.append(Paragraph("Ez da produkturik aurkitu eskaera honetan.", normal_style))
+            
+            elements.append(Spacer(1, 30))
+            
+            # Additional info section
+            info_section = [
+                [Paragraph("<b>Oharrak:</b>", ParagraphStyle('InfoLabel', parent=normal_style, fontSize=10, fontName='Helvetica-Bold'))],
+                [Paragraph("• Faktura hau zure erosketaren erregistro ofiziala da.", normal_style)],
+                [Paragraph("• Galderak edo zalantzak badituzu, gure bezeroen arreta zerbitzuarekin harremanetan jarri.", normal_style)],
+                [Paragraph("• Produktuak jasotzean, mesedez egiaztatu dena ondo dagoela.", normal_style)],
+            ]
+            
+            info_section_table = Table(info_section, colWidths=[180*mm])
+            info_section_table.setStyle(TableStyle([
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('LEFTPADDING', (0, 0), (-1, -1), 0),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+                ('TOPPADDING', (0, 0), (-1, -1), 2),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+            ]))
+            elements.append(info_section_table)
+            elements.append(Spacer(1, 20))
+            
+            # Footer with company info
+            footer_data = [
+                [Spacer(1, 10)],
+                [Paragraph("<b>Eskerrik asko zure erosketagatik!</b>", ParagraphStyle(
+                    'FooterThanks',
+                    parent=normal_style,
+                    fontSize=12,
+                    textColor=colors.HexColor('#2c3e50'),
+                    alignment=1,
+                    fontName='Helvetica-Bold'
+                ))],
+                [Spacer(1, 5)],
+                [Paragraph("OtherProteins - Zure osasunaren bazkidea", ParagraphStyle(
+                    'FooterCompany',
+                    parent=normal_style,
+                    fontSize=9,
+                    textColor=colors.HexColor('#7f8c8d'),
+                    alignment=1
+                ))],
+                [Paragraph(f"Faktura sortze data: {datetime.now().strftime('%Y-%m-%d %H:%M')}", ParagraphStyle(
+                    'FooterDate',
+                    parent=normal_style,
+                    fontSize=8,
+                    textColor=colors.HexColor('#95a5a6'),
+                    alignment=1
+                ))]
+            ]
+            
+            footer_table = Table(footer_data, colWidths=[180*mm])
+            footer_table.setStyle(TableStyle([
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('LEFTPADDING', (0, 0), (-1, -1), 0),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+                ('TOPPADDING', (0, 0), (-1, -1), 0),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+            ]))
+            elements.append(footer_table)
+            
+            # Build PDF
+            doc.build(elements)
+            buffer.seek(0)
+            return buffer
+        except ImportError as e:
+            logger.error(f"reportlab library is not installed: {str(e)}")
+            logger.error("Please install reportlab with: pip install reportlab")
+            return None
+        except Exception as e:
+            logger.error(f"Error generating PDF invoice: {type(e).__name__}: {str(e)}")
+            logger.error(traceback.format_exc())
+            # Log order data for debugging (without sensitive info)
+            logger.error(f"Order data keys: {list(order_data.keys()) if isinstance(order_data, dict) else 'Not a dict'}")
+            if isinstance(order_data, dict):
+                logger.error(f"Order ID: {order_data.get('eskaera_id', 'N/A')}")
+                logger.error(f"Order items count: {len(order_data.get('elementuak', [])) if isinstance(order_data.get('elementuak'), list) else 'N/A'}")
+            return None
+
+    @app.route('/order/<int:order_id>/invoice')
+    def download_invoice(order_id):
+        """Download PDF invoice/ticket for an order."""
+        try:
+            # Validate order_id
+            if not isinstance(order_id, int) or order_id <= 0:
+                logger.warning(f"Invalid order_id in download_invoice: {order_id}")
+                flash('Eskaera ID baliogabea.', 'danger')
+                return redirect(url_for('orders'))
+            
+            if 'user_id' not in session:
+                flash('Mesedez, saioa hasi faktura deskargatzeko.', 'warning')
+                return redirect(url_for('login'))
+            
+            user_id = session.get('user_id')
+            if not user_id or not isinstance(user_id, int) or user_id <= 0:
+                logger.warning(f"Invalid user_id in download_invoice: {user_id}")
+                flash('Erabiltzaile ID baliogabea.', 'warning')
+                return redirect(url_for('login'))
+            
+            # Get order details
+            try:
+                order = get_order_details(order_id)
+            except Exception as e:
+                logger.error(f"Error getting order details in download_invoice: {str(e)}")
+                logger.error(traceback.format_exc())
+                flash('Errorea gertatu da eskaera eskuratzean.', 'danger')
+                return redirect(url_for('orders'))
+            
+            if not order or not isinstance(order, dict):
+                flash('Eskaera ez da aurkitu.', 'danger')
+                return redirect(url_for('orders'))
+            
+            # Verify ownership (unless admin)
+            order_user_id = order.get('erabiltzaile_id')
+            user_email = session.get('user_email', '')
+            is_user_admin = session.get('is_admin', False)
+            if not is_user_admin and (not order_user_id or order_user_id != user_id):
+                logger.warning(f"User {user_id} tried to download invoice for order {order_id} belonging to user {order_user_id}")
+                flash('Eskaera hau zure kontuarena ez da.', 'danger')
+                return redirect(url_for('orders'))
+            
+            # Check if admin needs to provide invoice data before generating invoice
+            if user_email == 'admin@gmail.com':
+                # Check if invoice data is in session (from form)
+                invoice_data = session.get('invoice_user_data', None)
+                if not invoice_data:
+                    # Store order_id in session to redirect back after providing data
+                    session['pending_invoice_order_id'] = order_id
+                    flash('Mesedez, sartu fakturako datuak faktura sortu aurretik.', 'warning')
+                    return redirect(url_for('admin_complete_profile'))
+            
+            # Generate PDF
+            try:
+                # Get invoice data from session if admin provided it
+                invoice_user_data = None
+                if user_email == 'admin@gmail.com':
+                    invoice_user_data = session.get('invoice_user_data', None)
+                    # Clear session data after use
+                    if invoice_user_data:
+                        session.pop('invoice_user_data', None)
+                
+                pdf_buffer = generate_invoice_pdf(order, invoice_user_data=invoice_user_data)
+                if not pdf_buffer:
+                    logger.error(f"generate_invoice_pdf returned None for order {order_id}")
+                    flash('Errorea gertatu da faktura sortzean. Mesedez, saiatu berriro edo jarri harremanetan laguntza teknikorekin.', 'danger')
+                    return redirect(url_for('order_detail', order_id=order_id))
+            except Exception as e:
+                logger.error(f"Exception calling generate_invoice_pdf: {type(e).__name__}: {str(e)}")
+                logger.error(traceback.format_exc())
+                flash('Errorea gertatu da faktura sortzean. Mesedez, saiatu berriro.', 'danger')
+                return redirect(url_for('order_detail', order_id=order_id))
+            
+            # Create response
+            response = make_response(pdf_buffer.getvalue())
+            response.headers['Content-Type'] = 'application/pdf'
+            response.headers['Content-Disposition'] = f'inline; filename=faktura_{order_id}.pdf'
+            return response
+        except Exception as e:
+            logger.error(f"Unexpected error in download_invoice: {type(e).__name__}: {str(e)}")
+            logger.error(traceback.format_exc())
+            flash('Errore larria gertatu da. Mesedez, saiatu berriro.', 'danger')
+            return redirect(url_for('orders'))
+
+    @app.route('/admin/complete-profile', methods=['GET', 'POST'])
+    def admin_complete_profile():
+        """Form for admin to complete profile before generating invoice."""
+        try:
+            if 'user_id' not in session:
+                flash('Mesedez, saioa hasi.', 'warning')
+                return redirect(url_for('login'))
+            
+            user_id = session.get('user_id')
+            user_email = session.get('user_email', '')
+            
+            # Only allow admin@gmail.com
+            if user_email != 'admin@gmail.com':
+                flash('Bakarrik administratzaileak erabil dezakete orri hau.', 'danger')
+                return redirect(url_for('index'))
+            
+            # Get current user info
+            user_info = get_user_by_id(user_id)
+            if not user_info:
+                flash('Erabiltzailea ez da aurkitu.', 'danger')
+                return redirect(url_for('index'))
+            
+            # For admin, form should be empty (admin enters client data, not their own)
+            # If there's invoice data in session, use it (admin might have started filling it)
+            form_data = {
+                'izena': '',
+                'abizenak': '',
+                'helbide_elektronikoa': '',
+                'telefonoa': ''
+            }
+            
+            session_invoice_data = session.get('invoice_user_data', None)
+            if session_invoice_data:
+                form_data.update(session_invoice_data)
+            
+            if request.method == 'POST':
+                # Get form data
+                first_name = request.form.get('izena', '').strip()
+                last_name = request.form.get('abizenak', '').strip()
+                email = request.form.get('helbide_elektronikoa', '').strip()
+                phone = request.form.get('telefonoa', '').strip()
+                
+                # Validate required fields
+                errors = []
+                if not first_name:
+                    errors.append('Izena beharrezkoa da.')
+                if not last_name:
+                    errors.append('Abizenak beharrezkoak dira.')
+                if not email:
+                    errors.append('Email beharrezkoa da.')
+                elif '@' not in email:
+                    errors.append('Email baliogabea.')
+                if not phone:
+                    errors.append('Telefono zenbakia beharrezkoa da.')
+                
+                if errors:
+                    for error in errors:
+                        flash(error, 'danger')
+                    # Return form with submitted data
+                    form_data = {
+                        'izena': first_name,
+                        'abizenak': last_name,
+                        'helbide_elektronikoa': email,
+                        'telefonoa': phone
+                    }
+                    return render_template('admin_complete_profile.html', user=user_info, form_data=form_data)
+                
+                # Store invoice data in session (don't update database)
+                # These data will only be used for the invoice PDF
+                invoice_data = {
+                    'izena': first_name,
+                    'abizenak': last_name,
+                    'helbide_elektronikoa': email,
+                    'telefonoa': phone
+                }
+                session['invoice_user_data'] = invoice_data
+                
+                flash('Fakturako datuak gorde dira.', 'success')
+                
+                # Redirect to invoice if there was a pending invoice
+                pending_order_id = session.pop('pending_invoice_order_id', None)
+                if pending_order_id:
+                    return redirect(url_for('download_invoice', order_id=pending_order_id))
+                else:
+                    return redirect(url_for('orders'))
+            
+            return render_template('admin_complete_profile.html', user=user_info, form_data=form_data)
+        except Exception as e:
+            logger.error(f"Unexpected error in admin_complete_profile: {type(e).__name__}: {str(e)}")
+            logger.error(traceback.format_exc())
+            flash('Errore larria gertatu da. Mesedez, saiatu berriro.', 'danger')
+            return redirect(url_for('index'))
 
     @app.route('/admin/stock')
     def admin_stock():
