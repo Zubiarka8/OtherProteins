@@ -53,15 +53,26 @@ def init_db():
             irudi_urla TEXT,
             kategoria_id INTEGER,
             stocka INTEGER DEFAULT 0,
+            osagaiak TEXT,
+            balio_nutrizionalak TEXT,
+            erabilera_modua TEXT,
             FOREIGN KEY (kategoria_id) REFERENCES kategoriak(kategoria_id)
         )
     ''')
     
-    # Add stocka column if it doesn't exist (migration for existing databases)
-    try:
-        cursor.execute('ALTER TABLE produktuak ADD COLUMN stocka INTEGER DEFAULT 0')
-    except sqlite3.OperationalError:
-        pass  # Column already exists
+    # Migration: Add new columns if they don't exist (for existing databases)
+    new_columns = [
+        ('stocka', 'INTEGER DEFAULT 0'),
+        ('osagaiak', 'TEXT'),
+        ('balio_nutrizionalak', 'TEXT'),
+        ('erabilera_modua', 'TEXT')
+    ]
+    
+    for column_name, column_type in new_columns:
+        try:
+            cursor.execute(f'ALTER TABLE produktuak ADD COLUMN {column_name} {column_type}')
+        except sqlite3.OperationalError:
+            pass  # Column already exists
     
     # Create saski_elementuak (cart items) table
     cursor.execute('''
@@ -132,26 +143,89 @@ def seed_sample_data():
         VALUES (?, ?)
     ''', kategoriak)
     
-    # Insert sample products
+    # Insert sample products with complete information
     produktuak = [
-        ('Whey Protein Isolate', 'Kalitate handiko proteina isolatua', 55.00, '/images/whey.jpg', 1, 15),
-        ('Caseina Nocturna', 'Proteina motel askatzea gauean', 45.50, '/images/caseina.jpg', 1, 10),
-        ('Barritas Energéticas', 'Barritak entrenamenduarentzat', 25.00, '/images/barritas.jpg', 4, 30),
-        ('Creatina Monohidratada', 'Kreatina purua', 22.99, '/images/creatina.jpg', 2, 25),
-        ('Pre-entreno Intenso', 'Pre-entrenamendu formula indartsua', 38.75, '/images/preentreno.jpg', 3, 0),
+        (
+            'Whey Protein Isolate',
+            'Kalitate handiko proteina isolatua, %90 baino gehiagoko proteina purutasuna duena. Muskuluen berreskuratzea azkartzen du entrenamenduaren ondoren.',
+            55.00,
+            '/images/whey.jpg',
+            1,
+            15,
+            'Proteina isolatua (Whey Protein Isolate), zapore naturalak (txokolate, banilla, marrubi), lezitina (soja), acesulfame K, sukralosa.',
+            'Zerbitzu bakoitzeko (30g): Energia: 110 kcal, Proteina: 25g, Karbohidratoak: 2g (horietatik azukreak: 1g), Gantzak: 0.5g, Gatzak: 0.1g.',
+            'Nahastu 30g produktua 250ml ur edo esnearekin. Erabili entrenamenduaren ondoren edo gosariaren ordez. Nahasketa ondo irabiatu eta berehala hartu.'
+        ),
+        (
+            'Caseina Nocturna',
+            'Proteina motel askatzea gauean. Muskuluen mantenua bermatzen du lo egiten duzun bitartean.',
+            45.50,
+            '/images/caseina.jpg',
+            1,
+            10,
+            'Mikrokapsulatutako kaseina, zapore naturalak, lezitina, acesulfame K.',
+            'Zerbitzu bakoitzeko (40g): Energia: 140 kcal, Proteina: 30g, Karbohidratoak: 3g, Gantzak: 1g, Gatzak: 0.2g.',
+            'Nahastu 40g produktua 300ml ur edo esnearekin. Gauean lo egin baino 30 minutura hartu. Nahasketa ondo irabiatu.'
+        ),
+        (
+            'Barritas Energéticas',
+            'Barritak entrenamenduarentzat. Energia azkarra eta proteina ugaria eskaintzen dute.',
+            25.00,
+            '/images/barritas.jpg',
+            4,
+            30,
+            'Oloa, proteina isolatua, eztia, kakaoa, fruitu lehorrak, intxaurrak, bitamina eta mineralak.',
+            'Barrita bakoitzeko (60g): Energia: 250 kcal, Proteina: 20g, Karbohidratoak: 25g, Gantzak: 8g, Zuntz dietetikoa: 5g.',
+            'Erabili entrenamendu baino 30-60 minutura edo entrenamenduaren ondoren. Barrita zabaldu eta jan.'
+        ),
+        (
+            'Creatina Monohidratada',
+            'Kreatina purua, muskuluen indarra eta errendimendua hobetzen duena.',
+            22.99,
+            '/images/creatina.jpg',
+            2,
+            25,
+            'Kreatina monohidratada %100 purua, ez du gehigarririk.',
+            'Zerbitzu bakoitzeko (5g): Kreatina: 5g, Kaloriak: 0 kcal, Gantzak: 0g, Karbohidratoak: 0g.',
+            'Erabili eguneko 3-5g entrenamendu baino 30 minutura edo entrenamenduaren ondoren. Nahastu 200-300ml ur edo zukuarekin. Nahasketa ondo irabiatu eta berehala hartu.'
+        ),
+        (
+            'Pre-entreno Intenso',
+            'Pre-entrenamendu formula indartsua. Energia, fokua eta errendimendua hobetzen ditu.',
+            38.75,
+            '/images/preentreno.jpg',
+            3,
+            0,
+            'Kafeina anhidroa, beta-alanina, L-arginina, taurina, bitamina B taldea, mineralak, zapore naturalak.',
+            'Zerbitzu bakoitzeko (15g): Energia: 50 kcal, Kafeina: 200mg, Beta-alanina: 2g, L-arginina: 1g, Taurina: 1g, Bitamina B6: 2mg.',
+            'Nahastu 15g produktua 300-400ml ur hotzarekin. Erabili entrenamendu baino 20-30 minutura. Ez hartu eguneko 17:00etatik aurrera lo egiteko arazoak ekiditeko.'
+        ),
     ]
     
     cursor.executemany('''
-        INSERT OR IGNORE INTO produktuak (izena, deskribapena, prezioa, irudi_urla, kategoria_id, stocka)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT OR IGNORE INTO produktuak 
+        (izena, deskribapena, prezioa, irudi_urla, kategoria_id, stocka, osagaiak, balio_nutrizionalak, erabilera_modua)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', produktuak)
     
-    # Update stock for existing products if they don't have it
-    cursor.execute('UPDATE produktuak SET stocka = 15 WHERE izena = "Whey Protein Isolate" AND stocka IS NULL')
-    cursor.execute('UPDATE produktuak SET stocka = 10 WHERE izena = "Caseina Nocturna" AND stocka IS NULL')
-    cursor.execute('UPDATE produktuak SET stocka = 30 WHERE izena = "Barritas Energéticas" AND stocka IS NULL')
-    cursor.execute('UPDATE produktuak SET stocka = 25 WHERE izena = "Creatina Monohidratada" AND stocka IS NULL')
-    cursor.execute('UPDATE produktuak SET stocka = 0 WHERE izena = "Pre-entreno Intenso" AND stocka IS NULL')
+    # Update existing products with new fields if they don't have them
+    updates = [
+        ('Whey Protein Isolate', 15, 'Proteina isolatua (Whey Protein Isolate), zapore naturalak (txokolate, banilla, marrubi), lezitina (soja), acesulfame K, sukralosa.', 'Zerbitzu bakoitzeko (30g): Energia: 110 kcal, Proteina: 25g, Karbohidratoak: 2g (horietatik azukreak: 1g), Gantzak: 0.5g, Gatzak: 0.1g.', 'Nahastu 30g produktua 250ml ur edo esnearekin. Erabili entrenamenduaren ondoren edo gosariaren ordez. Nahasketa ondo irabiatu eta berehala hartu.'),
+        ('Caseina Nocturna', 10, 'Mikrokapsulatutako kaseina, zapore naturalak, lezitina, acesulfame K.', 'Zerbitzu bakoitzeko (40g): Energia: 140 kcal, Proteina: 30g, Karbohidratoak: 3g, Gantzak: 1g, Gatzak: 0.2g.', 'Nahastu 40g produktua 300ml ur edo esnearekin. Gauean lo egin baino 30 minutura hartu. Nahasketa ondo irabiatu.'),
+        ('Barritas Energéticas', 30, 'Oloa, proteina isolatua, eztia, kakaoa, fruitu lehorrak, intxaurrak, bitamina eta mineralak.', 'Barrita bakoitzeko (60g): Energia: 250 kcal, Proteina: 20g, Karbohidratoak: 25g, Gantzak: 8g, Zuntz dietetikoa: 5g.', 'Erabili entrenamendu baino 30-60 minutura edo entrenamenduaren ondoren. Barrita zabaldu eta jan.'),
+        ('Creatina Monohidratada', 25, 'Kreatina monohidratada %100 purua, ez du gehigarririk.', 'Zerbitzu bakoitzeko (5g): Kreatina: 5g, Kaloriak: 0 kcal, Gantzak: 0g, Karbohidratoak: 0g.', 'Erabili eguneko 3-5g entrenamendu baino 30 minutura edo entrenamenduaren ondoren. Nahastu 200-300ml ur edo zukuarekin. Nahasketa ondo irabiatu eta berehala hartu.'),
+        ('Pre-entreno Intenso', 0, 'Kafeina anhidroa, beta-alanina, L-arginina, taurina, bitamina B taldea, mineralak, zapore naturalak.', 'Zerbitzu bakoitzeko (15g): Energia: 50 kcal, Kafeina: 200mg, Beta-alanina: 2g, L-arginina: 1g, Taurina: 1g, Bitamina B6: 2mg.', 'Nahastu 15g produktua 300-400ml ur hotzarekin. Erabili entrenamendu baino 20-30 minutura. Ez hartu eguneko 17:00etatik aurrera lo egiteko arazoak ekiditeko.')
+    ]
+    
+    for izena, stocka, osagaiak, balio_nutrizionalak, erabilera_modua in updates:
+        cursor.execute('''
+            UPDATE produktuak 
+            SET stocka = COALESCE(stocka, ?),
+                osagaiak = COALESCE(osagaiak, ?),
+                balio_nutrizionalak = COALESCE(balio_nutrizionalak, ?),
+                erabilera_modua = COALESCE(erabilera_modua, ?)
+            WHERE izena = ?
+        ''', (stocka, osagaiak, balio_nutrizionalak, erabilera_modua, izena))
     
     # Insert sample user (password: 'admin123')
     hashed_password = hash_password('admin123')

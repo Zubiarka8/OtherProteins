@@ -1,5 +1,6 @@
 
 from flask import Flask, render_template, request, flash, redirect, url_for, session
+from datetime import datetime
 from products import products_bp
 from database import init_db
 from db_utils import (
@@ -20,6 +21,18 @@ def create_app():
     """Create and configure the Flask app."""
     app = Flask(__name__, template_folder='templates')
     app.config['SECRET_KEY'] = 'a_very_secret_key'  # Replace in production
+    
+    # Context processor for template variables (e.g., current year, cart count)
+    @app.context_processor
+    def inject_template_vars():
+        cart_count = 0
+        if 'user_id' in session:
+            cart_items = get_cart_items(session['user_id'])
+            cart_count = sum(item['kantitatea'] for item in cart_items)
+        return dict(
+            current_year=datetime.now().year,
+            cart_count=cart_count
+        )
 
     # Register Blueprints
     app.register_blueprint(products_bp, url_prefix='/products')
@@ -71,6 +84,31 @@ def create_app():
             flash('Errorea gertatu da produktua gehitzean.', 'danger')
         
         return redirect(url_for('index'))
+
+    @app.route('/produktu/<int:id>')
+    def produktu_xehetasuna(id):
+        """Render product detail page."""
+        product = get_product_by_id(id)
+        
+        if not product:
+            flash('Produktua ez da aurkitu.', 'danger')
+            return redirect(url_for('index'))
+        
+        # Format product for template
+        formatted_product = {
+            'produktu_id': product['produktu_id'],
+            'izena': product['izena'],
+            'deskribapena': product.get('deskribapena', ''),
+            'prezioa': product['prezioa'],
+            'stocka': product.get('stocka', 0),
+            'irudi_urla': product.get('irudi_urla', 'https://via.placeholder.com/500x500'),
+            'kategoria_izena': product.get('kategoria_izena', ''),
+            'osagaiak': product.get('osagaiak', ''),
+            'balio_nutrizionalak': product.get('balio_nutrizionalak', ''),
+            'erabilera_modua': product.get('erabilera_modua', '')
+        }
+        
+        return render_template('product_detail.html', produktua=formatted_product)
 
     @app.route('/checkout', methods=['POST'])
     def checkout():

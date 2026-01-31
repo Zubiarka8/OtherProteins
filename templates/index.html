@@ -22,13 +22,29 @@
             {% for produktua in produktuak %}
             <div class="col-md-4">
                 <div class="card mb-4">
-                    <img src="{{ produktua.irudi_urla or 'https://via.placeholder.com/250x200' }}" class="card-img-top" alt="{{ produktua.izena }}">
+                    <a href="{{ url_for('produktu_xehetasuna', id=produktua.id) }}">
+                        <img src="{{ produktua.irudi_urla or 'https://via.placeholder.com/250x200' }}" class="card-img-top" alt="{{ produktua.izena }}" style="cursor: pointer;">
+                    </a>
                     <div class="card-body">
-                        <h5 class="card-title">{{ produktua.izena }}</h5>
+                        <h5 class="card-title">
+                            <a href="{{ url_for('produktu_xehetasuna', id=produktua.id) }}" class="text-decoration-none text-dark">
+                                {{ produktua.izena }}
+                            </a>
+                        </h5>
                         <p class="card-text">{{ produktua.deskribapena }}</p>
                         <p class="card-text"><strong>Prezioa:</strong> {{ "%.2f"|format(produktua.prezioa) }}€</p>
-                        <p class="card-text"><strong>Stockean:</strong> {{ produktua.stocka }}</p>
-                        <a href="{{ url_for('add_to_cart', produktu_id=produktua.id) }}" class="btn btn-primary">Saskira gehitu</a>
+                        <p class="card-text">
+                            <strong>Stockean:</strong> 
+                            {% if produktua.stocka > 0 %}
+                                <span class="badge bg-success">{{ produktua.stocka }}</span>
+                            {% else %}
+                                <span class="badge bg-danger">Stockik ez</span>
+                            {% endif %}
+                        </p>
+                        <div class="d-grid gap-2">
+                            <a href="{{ url_for('produktu_xehetasuna', id=produktua.id) }}" class="btn btn-outline-primary">Xehetasunak ikusi</a>
+                            <a href="{{ url_for('add_to_cart', produktu_id=produktua.id) }}" class="btn btn-primary">Saskira gehitu</a>
+                        </div>
                     </div>
                 </div>
             </div>
