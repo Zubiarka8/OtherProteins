@@ -12,19 +12,116 @@ DATABASE_PATH = Path('otherproteins.db')
 
 def get_db_connection():
     """Get a database connection with timeout and WAL mode for better concurrency."""
-    conn = sqlite3.connect(DATABASE_PATH, timeout=20.0)
-    conn.row_factory = sqlite3.Row
-    # Enable WAL mode for better concurrency (allows multiple readers)
-    conn.execute('PRAGMA journal_mode=WAL')
-    return conn
+    import time
+    import logging
+    import os
+    max_retries = 5
+    retry_delay = 0.2
+    logger = logging.getLogger(__name__)
+    
+    # Ensure database directory exists
+    try:
+        DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        logger.error(f"Error creating database directory: {str(e)}")
+    
+    for attempt in range(max_retries):
+        conn = None
+        try:
+            # Increase timeout and use check_same_thread=False for better concurrency
+            conn = sqlite3.connect(
+                str(DATABASE_PATH), 
+                timeout=60.0,  # Increased timeout to 60 seconds
+                check_same_thread=False  # Allow connections from different threads
+            )
+            conn.row_factory = sqlite3.Row
+            
+            # Enable WAL mode for better concurrency (allows multiple readers)
+            # This is safe to call multiple times - it will return the current mode if already set
+            try:
+                conn.execute('PRAGMA journal_mode=WAL')
+            except sqlite3.OperationalError as e:
+                logger.warning(f"Could not set WAL mode: {str(e)}")
+            
+            # Set busy timeout to handle concurrent access better (60 seconds)
+            try:
+                conn.execute('PRAGMA busy_timeout=60000')
+            except sqlite3.OperationalError as e:
+                logger.warning(f"Could not set busy timeout: {str(e)}")
+            
+            # Enable foreign keys
+            try:
+                conn.execute('PRAGMA foreign_keys=ON')
+            except sqlite3.OperationalError as e:
+                logger.warning(f"Could not enable foreign keys: {str(e)}")
+            
+            # Test the connection
+            conn.execute('SELECT 1')
+            return conn
+            
+        except sqlite3.OperationalError as e:
+            error_msg = str(e).lower()
+            if conn:
+                try:
+                    conn.close()
+                except:
+                    pass
+                conn = None
+            
+            if "database is locked" in error_msg:
+                if attempt < max_retries - 1:
+                    wait_time = retry_delay * (2 ** attempt)  # Exponential backoff
+                    logger.warning(f"Database locked, retrying in {wait_time:.2f}s... (attempt {attempt + 1}/{max_retries})")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    logger.error(f"Database locked after {max_retries} attempts")
+                    raise sqlite3.OperationalError(f"Database is locked and could not be accessed after {max_retries} attempts")
+            elif "unable to open database file" in error_msg:
+                logger.error(f"Unable to open database file: {DATABASE_PATH}")
+                raise
+            elif "no such file or directory" in error_msg:
+                logger.error(f"Database directory does not exist: {DATABASE_PATH.parent}")
+                raise
+            else:
+                logger.error(f"Database operational error: {str(e)}")
+                raise
+        except PermissionError as e:
+            if conn:
+                try:
+                    conn.close()
+                except:
+                    pass
+            logger.error(f"Permission denied accessing database: {DATABASE_PATH}")
+            raise
+        except sqlite3.DatabaseError as e:
+            if conn:
+                try:
+                    conn.close()
+                except:
+                    pass
+            logger.error(f"Database error: {str(e)}")
+            raise
+        except Exception as e:
+            if conn:
+                try:
+                    conn.close()
+                except:
+                    pass
+            logger.error(f"Unexpected error connecting to database: {type(e).__name__}: {str(e)}")
+            raise
 
 def init_db():
     """Initialize the database with all required tables."""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    # Create erabiltzaileak (users) table
-    cursor.execute('''
+    import logging
+    logger = logging.getLogger(__name__)
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Create erabiltzaileak (users) table
+        cursor.execute('''
         CREATE TABLE IF NOT EXISTS erabiltzaileak (
             erabiltzaile_id INTEGER PRIMARY KEY AUTOINCREMENT,
             helbide_elektronikoa TEXT UNIQUE NOT NULL,
@@ -34,19 +131,19 @@ def init_db():
             tfnoa TEXT,
             sormen_data TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
-    ''')
-    
-    # Create kategoriak (categories) table
-    cursor.execute('''
+        ''')
+        
+        # Create kategoriak (categories) table
+        cursor.execute('''
         CREATE TABLE IF NOT EXISTS kategoriak (
             kategoria_id INTEGER PRIMARY KEY AUTOINCREMENT,
             izena TEXT NOT NULL UNIQUE,
             deskribapena TEXT
         )
-    ''')
-    
-    # Create produktuak (products) table
-    cursor.execute('''
+        ''')
+        
+        # Create produktuak (products) table
+        cursor.execute('''
         CREATE TABLE IF NOT EXISTS produktuak (
             produktu_id INTEGER PRIMARY KEY AUTOINCREMENT,
             izena TEXT NOT NULL,
@@ -60,24 +157,24 @@ def init_db():
             erabilera_modua TEXT,
             FOREIGN KEY (kategoria_id) REFERENCES kategoriak(kategoria_id)
         )
-    ''')
-    
-    # Migration: Add new columns if they don't exist (for existing databases)
-    new_columns = [
+        ''')
+        
+        # Migration: Add new columns if they don't exist (for existing databases)
+        new_columns = [
         ('stocka', 'INTEGER DEFAULT 0'),
         ('osagaiak', 'TEXT'),
         ('balio_nutrizionalak', 'TEXT'),
         ('erabilera_modua', 'TEXT')
     ]
     
-    for column_name, column_type in new_columns:
-        try:
-            cursor.execute(f'ALTER TABLE produktuak ADD COLUMN {column_name} {column_type}')
-        except sqlite3.OperationalError:
-            pass  # Column already exists
-    
-    # Create saski_elementuak (cart items) table
-    cursor.execute('''
+        for column_name, column_type in new_columns:
+            try:
+                cursor.execute(f'ALTER TABLE produktuak ADD COLUMN {column_name} {column_type}')
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+        
+        # Create saski_elementuak (cart items) table
+        cursor.execute('''
         CREATE TABLE IF NOT EXISTS saski_elementuak (
             erabiltzaile_id INTEGER NOT NULL,
             produktu_id INTEGER NOT NULL,
@@ -86,10 +183,10 @@ def init_db():
             FOREIGN KEY (erabiltzaile_id) REFERENCES erabiltzaileak(erabiltzaile_id),
             FOREIGN KEY (produktu_id) REFERENCES produktuak(produktu_id)
         )
-    ''')
-    
-    # Create eskaerak (orders) table
-    cursor.execute('''
+        ''')
+        
+        # Create eskaerak (orders) table
+        cursor.execute('''
         CREATE TABLE IF NOT EXISTS eskaerak (
             eskaera_id INTEGER PRIMARY KEY AUTOINCREMENT,
             erabiltzaile_id INTEGER NOT NULL,
@@ -98,25 +195,35 @@ def init_db():
             entrega_mota TEXT DEFAULT 'tienda',
             helbidea TEXT,
             entrega_kostua REAL DEFAULT 0,
+            kalea TEXT,
+            zenbakia TEXT,
+            hiria TEXT,
+            probintzia TEXT,
+            posta_kodea TEXT,
             FOREIGN KEY (erabiltzaile_id) REFERENCES erabiltzaileak(erabiltzaile_id)
         )
-    ''')
-    
-    # Migration: Add new columns if they don't exist
-    new_order_columns = [
+        ''')
+        
+        # Migration: Add new columns if they don't exist
+        new_order_columns = [
         ('entrega_mota', 'TEXT DEFAULT "tienda"'),
         ('helbidea', 'TEXT'),
-        ('entrega_kostua', 'REAL DEFAULT 0')
+        ('entrega_kostua', 'REAL DEFAULT 0'),
+        ('kalea', 'TEXT'),
+        ('zenbakia', 'TEXT'),
+        ('hiria', 'TEXT'),
+        ('probintzia', 'TEXT'),
+        ('posta_kodea', 'TEXT')
     ]
     
-    for column_name, column_type in new_order_columns:
-        try:
-            cursor.execute(f'ALTER TABLE eskaerak ADD COLUMN {column_name} {column_type}')
-        except sqlite3.OperationalError:
-            pass  # Column already exists
-    
-    # Create eskaera_elementuak (order items) table
-    cursor.execute('''
+        for column_name, column_type in new_order_columns:
+            try:
+                cursor.execute(f'ALTER TABLE eskaerak ADD COLUMN {column_name} {column_type}')
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+        
+        # Create eskaera_elementuak (order items) table
+        cursor.execute('''
         CREATE TABLE IF NOT EXISTS eskaera_elementuak (
             eskaera_elementu_id INTEGER PRIMARY KEY AUTOINCREMENT,
             eskaera_id INTEGER NOT NULL,
@@ -126,17 +233,36 @@ def init_db():
             FOREIGN KEY (eskaera_id) REFERENCES eskaerak(eskaera_id),
             FOREIGN KEY (produktu_id) REFERENCES produktuak(produktu_id)
         )
-    ''')
-    
-    # Create indexes for better performance
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_erabiltzaile_email ON erabiltzaileak(helbide_elektronikoa)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_produktu_kategoria ON produktuak(kategoria_id)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_saski_erabiltzaile ON saski_elementuak(erabiltzaile_id)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_eskaera_erabiltzaile ON eskaerak(erabiltzaile_id)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_eskaera_elementu_eskaera ON eskaera_elementuak(eskaera_id)')
-    
-    conn.commit()
-    conn.close()
+        ''')
+        
+        # Create indexes for better performance
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_erabiltzaile_email ON erabiltzaileak(helbide_elektronikoa)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_produktu_kategoria ON produktuak(kategoria_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_saski_erabiltzaile ON saski_elementuak(erabiltzaile_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_eskaera_erabiltzaile ON eskaerak(erabiltzaile_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_eskaera_elementu_eskaera ON eskaera_elementuak(eskaera_id)')
+        
+        try:
+            conn.commit()
+            print(f"Database initialized successfully at {DATABASE_PATH}")
+        except Exception as e:
+            logger.error(f"Error committing database initialization: {str(e)}")
+            conn.rollback()
+            raise
+    except Exception as e:
+        logger.error(f"Error initializing database: {str(e)}")
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
+        raise
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception as e:
+                logger.error(f"Error closing connection in init_db: {str(e)}")
     print(f"Database initialized successfully at {DATABASE_PATH}")
 
 def hash_password(password):

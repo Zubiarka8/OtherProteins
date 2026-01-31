@@ -5,13 +5,19 @@
 
 // Document ready
 document.addEventListener('DOMContentLoaded', function() {
-    // Auto-dismiss flash messages after 5 seconds
-    const alerts = document.querySelectorAll('.alert:not(.alert-permanent)');
-    alerts.forEach(function(alert) {
+    // Auto-dismiss flash messages after 10 seconds (only for flash messages, not info alerts)
+    // Only dismiss alerts that are flash messages (in the main container, not in cards)
+    const flashAlerts = document.querySelectorAll('main .container .alert:not(.alert-permanent)');
+    flashAlerts.forEach(function(alert) {
         setTimeout(function() {
-            const bsAlert = new bootstrap.Alert(alert);
-            bsAlert.close();
-        }, 5000);
+            try {
+                const bsAlert = new bootstrap.Alert(alert);
+                bsAlert.close();
+            } catch (e) {
+                // If Bootstrap Alert is not available, just hide it
+                alert.style.display = 'none';
+            }
+        }, 10000); // 10 seconds instead of 5
     });
 
     // Smooth scroll for anchor links

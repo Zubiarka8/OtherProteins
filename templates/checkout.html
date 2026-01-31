@@ -48,16 +48,48 @@
                             </div>
                         </div>
                         
-                        <!-- Address Field (only for delivery) -->
+                        <!-- Address Fields (only for delivery) -->
                         <div class="mb-4" id="addressField" style="display: none;">
-                            <label for="helbidea" class="form-label fw-bold">
-                                <i class="bi bi-geo-alt"></i> Helbidea
-                            </label>
-                            <textarea class="form-control" id="helbidea" name="helbidea" 
-                                      rows="3" placeholder="Sartu zure helbide osoa..."></textarea>
-                            <small class="form-text text-muted">
-                                Mesedez, sartu helbide osoa: kalea, zenbakia, hiria, posta kodea
-                            </small>
+                            <h6 class="mb-3 fw-bold">
+                                <i class="bi bi-geo-alt"></i> Helbide Informazioa
+                            </h6>
+                            
+                            <div class="row">
+                                <div class="col-md-8 mb-3">
+                                    <label for="kalea" class="form-label">Kalea</label>
+                                    <input type="text" class="form-control" id="kalea" name="kalea" 
+                                           placeholder="Adibidez: Gran Vía">
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label for="zenbakia" class="form-label">Zenbakia</label>
+                                    <input type="text" class="form-control" id="zenbakia" name="zenbakia" 
+                                           placeholder="Adibidez: 25">
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="hiria" class="form-label">Hiria / Herria</label>
+                                    <input type="text" class="form-control" id="hiria" name="hiria" 
+                                           placeholder="Adibidez: Bilbao" required>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="probintzia" class="form-label">Probintzia</label>
+                                    <input type="text" class="form-control" id="probintzia" name="probintzia" 
+                                           placeholder="Adibidez: Bizkaia" required>
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="posta_kodea" class="form-label">Posta kodea</label>
+                                    <input type="text" class="form-control" id="posta_kodea" name="posta_kodea" 
+                                           placeholder="Adibidez: 48001" required>
+                                </div>
+                            </div>
+                            
+                            <!-- Legacy field for compatibility -->
+                            <input type="hidden" id="helbidea" name="helbidea" value="">
                         </div>
                         
                         <hr>
@@ -140,18 +172,40 @@
 function toggleAddressField() {
     const etxeraRadio = document.getElementById('etxera');
     const addressField = document.getElementById('addressField');
-    const helbideaInput = document.getElementById('helbidea');
+    const requiredFields = ['kalea', 'hiria', 'probintzia', 'posta_kodea'];
     
     if (etxeraRadio.checked) {
         addressField.style.display = 'block';
-        helbideaInput.required = true;
+        requiredFields.forEach(fieldId => {
+            document.getElementById(fieldId).required = true;
+        });
         updateShippingCost(true);
     } else {
         addressField.style.display = 'none';
-        helbideaInput.required = false;
+        requiredFields.forEach(fieldId => {
+            document.getElementById(fieldId).required = false;
+        });
         updateShippingCost(false);
     }
 }
+
+// Build full address string before form submission
+document.querySelector('form').addEventListener('submit', function(e) {
+    const etxeraRadio = document.getElementById('etxera');
+    if (etxeraRadio && etxeraRadio.checked) {
+        const kalea = document.getElementById('kalea').value || '';
+        const zenbakia = document.getElementById('zenbakia').value || '';
+        const hiria = document.getElementById('hiria').value || '';
+        const probintzia = document.getElementById('probintzia').value || '';
+        const posta_kodea = document.getElementById('posta_kodea').value || '';
+        
+        const fullAddress = [kalea, zenbakia, posta_kodea, hiria, probintzia]
+            .filter(part => part.trim())
+            .join(', ');
+        
+        document.getElementById('helbidea').value = fullAddress;
+    }
+});
 
 function updateShippingCost(hasShipping) {
     const subtotal = {{ subtotal }};

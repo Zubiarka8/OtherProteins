@@ -29,13 +29,16 @@
                                 {% endif %}
                             </p>
                         </div>
-                        <span class="badge 
-                            {% if order.egoera == 'prozesatzen' %}bg-warning
-                            {% elif order.egoera == 'bidalita' %}bg-info
-                            {% elif order.egoera == 'bukatuta' %}bg-success
-                            {% else %}bg-secondary{% endif %} fs-6">
-                            {{ order.egoera|title }}
-                        </span>
+                        <div class="text-end">
+                            <span class="badge 
+                                {% if order.egoera == 'prozesatzen' %}bg-warning
+                                {% elif order.egoera == 'bidalita' %}bg-info
+                                {% elif order.egoera == 'bukatuta' %}bg-success
+                                {% elif order.egoera == 'bertan_behera' %}bg-danger
+                                {% else %}bg-secondary{% endif %} fs-6">
+                                {{ order.egoera|title }}
+                            </span>
+                        </div>
                     </div>
                     
                     <!-- Delivery Information -->
@@ -54,12 +57,17 @@
                                 {% endif %}
                             </p>
                         </div>
-                        {% if order.helbidea %}
+                        {% if order.entrega_mota == 'etxera' and (order.kalea or order.hiria) %}
                         <div class="col-md-6">
                             <h6 class="mb-2">
                                 <i class="bi bi-geo-alt"></i> Helbidea
                             </h6>
-                            <p class="mb-0 text-muted small">{{ order.helbidea }}</p>
+                            <p class="mb-0 text-muted small">
+                                {% if order.kalea %}
+                                    {{ order.kalea }}{% if order.zenbakia %} {{ order.zenbakia }}{% endif %}<br>
+                                {% endif %}
+                                {% if order.posta_kodea %}{{ order.posta_kodea }} {% endif %}{% if order.hiria %}{{ order.hiria }}{% endif %}{% if order.probintzia %}, {{ order.probintzia }}{% endif %}
+                            </p>
                         </div>
                         {% endif %}
                     </div>
@@ -143,6 +151,55 @@
                     <div class="d-flex justify-content-between mb-3">
                         <span class="fs-5">Guztira:</span>
                         <strong class="fs-4 text-primary">{{ "%.2f"|format(order.total) }}€</strong>
+                    </div>
+                    
+                    <!-- Action Buttons Container -->
+                    <div class="mb-3">
+                        {% if order.egoera == 'prozesatzen' %}
+                        <div class="alert alert-info mb-3 alert-permanent">
+                            <i class="bi bi-clock"></i> 
+                            <strong>Eskaera prozesatzen ari da</strong><br>
+                            <small>Dendan jasotzeko modua aukeratu baduzu, produktuak jaso dituzunean beheko botoia erabili.</small>
+                        </div>
+                        <form action="{{ url_for('confirm_order_route', order_id=order.eskaera_id) }}" method="post" class="mb-2">
+                            <button type="submit" class="btn btn-success w-100">
+                                <i class="bi bi-check-circle"></i> Confirmar pedido
+                            </button>
+                        </form>
+                        {% if order.can_cancel and order.egoera != 'bertan_behera' %}
+                        <form action="{{ url_for('cancel_order_route', order_id=order.eskaera_id) }}" method="post" 
+                              onsubmit="return confirm('Ziur zaude eskaera hau bertan behera utzi nahi duzula? Stocka berreskuratuko da baina dirua ez da itzuliko 24 ordu baino gehiago igaro badira.');">
+                            <button type="submit" class="btn btn-danger w-100">
+                                <i class="bi bi-x-circle"></i> Bertan behera utzi
+                            </button>
+                        </form>
+                        {% endif %}
+                        {% elif order.egoera == 'bidalita' %}
+                        <div class="alert alert-success mb-3 alert-permanent">
+                            <i class="bi bi-truck"></i> 
+                            <strong>Eskaera bidali da!</strong><br>
+                            <small>Jaso duzunean, mesedez berretsi beheko botoia erabiliz.</small>
+                        </div>
+                        <form action="{{ url_for('confirm_order_route', order_id=order.eskaera_id) }}" method="post" class="mb-2">
+                            <button type="submit" class="btn btn-success w-100">
+                                <i class="bi bi-check-circle"></i> Eskaera jaso dut berrestu
+                            </button>
+                        </form>
+                        {% if order.can_cancel and order.egoera != 'bertan_behera' %}
+                        <form action="{{ url_for('cancel_order_route', order_id=order.eskaera_id) }}" method="post" 
+                              onsubmit="return confirm('Ziur zaude eskaera hau bertan behera utzi nahi duzula? Stocka berreskuratuko da baina dirua ez da itzuliko 24 ordu baino gehiago igaro badira.');">
+                            <button type="submit" class="btn btn-danger w-100">
+                                <i class="bi bi-x-circle"></i> Bertan behera utzi
+                            </button>
+                        </form>
+                        {% endif %}
+                        {% elif order.egoera == 'bukatuta' %}
+                        <div class="alert alert-success mb-3 alert-permanent">
+                            <i class="bi bi-check-circle-fill"></i> 
+                            <strong>Eskaera jaso da!</strong><br>
+                            <small>Eskerrik asko zure erosketagatik. Zure iritzia baliagarria da guretzat!</small>
+                        </div>
+                        {% endif %}
                     </div>
                     
                     <div class="mt-4">
