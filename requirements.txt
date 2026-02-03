@@ -1,2 +1,3 @@
-Flask
-reportlab
+Flask==3.0.0
+gunicorn==21.2.0
+reportlab==4.0.9
