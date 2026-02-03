@@ -2,6 +2,8 @@
 
 Flask-ekin garatutako e-commerce web aplikazioa kirol osagarriak eta nutrizio produktuak saltzeko. Interfazea euskaraz dago eta produktuen kudeaketa, erosketa saskia, eskaerak eta fakturazioa eskaintzen ditu.
 
+**🌐 Webgunea:** [https://otherproteins.onrender.com](https://otherproteins.onrender.com)
+
 ## 📋 Eduki Taula
 
 - [Proiektuaren Deskribapena](#-proiektuaren-deskribapena)
