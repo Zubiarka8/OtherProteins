@@ -122,13 +122,21 @@ Datu-basea automatikoki hasieratzen da aplikazioa lehen aldiz exekutatzean. Hone
 
 **Oharra**: Produktuak administratzaile panelaren bidez gehi daitezke soilik.
 
+### Render-n (SQLite) zabaltzea
+
+Aplikazioak **SQLite** erabiltzen du. Render-en disko arrunta efimeroa da, beraz datuak galtzen dira bideratze bakoitzean. **Disko iraunkorra** erabili behar duzu:
+
+1. Render Dashboard → zure Web Service → **Disks** → Add Disk (adib. 1 GB), mount path: `/data`.
+2. **Environment** atalean gehitu:
+   - `SQLITE_PATH` = `/data/otherproteins.db`
+   - `SECRET_KEY` = zure sekretu gako segurua (produkzioan beharrezkoa).
+3. **Start Command**: `gunicorn app:app`
+
+Lehen abiaraztean taulak eta admin erabiltzailea automatikoki sortuko dira disko iraunkorrean. Xehetasun gehiago: `RENDER.md`.
+
 ### Segurtasun Konfigurazioa
 
-⚠️ **GARRANTZITSUA**: Produkzioan zabaldu aurretik, aldatu sekretu gakoa `app.py` fitxategian:
-
-```python
-app.config['SECRET_KEY'] = 'zure_sekretu_gako_oso_segurua_hemen'
-```
+⚠️ **GARRANTZITSUA**: Produkzioan (Render barne) ezarri `SECRET_KEY` ingurune-aldagaia; aplikazioak automatikoki irakurriko du. Lokalean defektuzko balioa erabiltzen da.
 
 ## 🎮 Erabilera
 

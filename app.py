@@ -2,6 +2,7 @@
 from flask import Flask, render_template, request, flash, redirect, url_for, session, make_response
 from datetime import datetime, timedelta
 import logging
+import os
 import traceback
 import sqlite3
 from werkzeug.exceptions import BadRequest, InternalServerError, NotFound
@@ -37,14 +38,16 @@ from db_utils import (
     update_user_info
 )
 
-# Configure logging
+# Configure logging (FileHandler opcional para entornos tipo Render donde el FS puede ser efímero)
+_log_handlers = [logging.StreamHandler()]
+try:
+    _log_handlers.append(logging.FileHandler('error.log'))
+except (OSError, PermissionError):
+    pass
 logging.basicConfig(
     level=logging.ERROR,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('error.log'),
-        logging.StreamHandler()
-    ]
+    handlers=_log_handlers
 )
 logger = logging.getLogger(__name__)
 
@@ -78,7 +81,7 @@ except Exception as e:
 def create_app():
     """Create and configure the Flask app."""
     app = Flask(__name__, template_folder='templates')
-    app.config['SECRET_KEY'] = 'a_very_secret_key'  # Replace in production
+    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'a_very_secret_key')
     
     # Template filter to translate order status to Basque
     @app.template_filter('egoera_izena')
@@ -2849,6 +2852,10 @@ def create_app():
 
     return app
 
+
+# Instancia a nivel de módulo para Gunicorn (Render: gunicorn app:app)
+app = create_app()
+
+
 if __name__ == "__main__":
-    app = create_app()
     app.run(debug=True, host='0.0.0.0', port=5000)

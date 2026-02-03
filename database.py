@@ -1,14 +1,19 @@
 """
 Database schema and initialization for OtherProteins e-commerce platform.
 All table and column names are in Basque as per requirements.
+
+SQLite path: set SQLITE_PATH env var for production (e.g. Render persistent disk).
+Example: SQLITE_PATH=/data/otherproteins.db
 """
 
+import os
 import sqlite3
 import hashlib
 from datetime import datetime
 from pathlib import Path
 
-DATABASE_PATH = Path('otherproteins.db')
+# Configurable for Render: use persistent disk path via SQLITE_PATH
+DATABASE_PATH = Path(os.environ.get('SQLITE_PATH', 'otherproteins.db'))
 
 def get_db_connection():
     """Get a database connection with timeout and WAL mode for better concurrency."""
@@ -19,11 +24,13 @@ def get_db_connection():
     retry_delay = 0.2
     logger = logging.getLogger(__name__)
     
-    # Ensure database directory exists
-    try:
-        DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    except Exception as e:
-        logger.error(f"Error creating database directory: {str(e)}")
+    # Ensure database parent directory exists (skip for cwd-relative paths like 'otherproteins.db')
+    parent = DATABASE_PATH.parent
+    if parent != Path('.'):
+        try:
+            parent.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            logger.error(f"Error creating database directory: {str(e)}")
     
     for attempt in range(max_retries):
         conn = None
@@ -200,11 +207,7 @@ def init_db():
             logger.warning(f"Could not create/update admin user: {str(e)}")
         except Exception as e:
             logger.warning(f"Error creating admin user: {str(e)}")
-            try:
-                cursor.execute(f'ALTER TABLE produktuak ADD COLUMN {column_name} {column_type}')
-            except sqlite3.OperationalError:
-                pass  # Column already exists
-        
+
         # Create saski_elementuak (cart items) table
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS saski_elementuak (
@@ -276,7 +279,7 @@ def init_db():
         
         try:
             conn.commit()
-            print(f"Database initialized successfully at {DATABASE_PATH}")
+            logger.info("Database initialized successfully at %s", DATABASE_PATH)
         except Exception as e:
             logger.error(f"Error committing database initialization: {str(e)}")
             conn.rollback()
@@ -286,7 +289,7 @@ def init_db():
         if conn:
             try:
                 conn.rollback()
-            except:
+            except Exception:
                 pass
         raise
     finally:
@@ -295,7 +298,6 @@ def init_db():
                 conn.close()
             except Exception as e:
                 logger.error(f"Error closing connection in init_db: {str(e)}")
-    print(f"Database initialized successfully at {DATABASE_PATH}")
 
 def hash_password(password):
     """Hash a password using SHA256."""
@@ -331,10 +333,10 @@ def seed_sample_data():
     
     conn.commit()
     conn.close()
-    print("Sample data seeded successfully")
+    import logging
+    logging.getLogger(__name__).info("Sample data seeded successfully")
 
 if __name__ == '__main__':
     init_db()
     seed_sample_data()
-    print("\nDatabase setup complete!")
 
